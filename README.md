@@ -9,7 +9,7 @@ Mang iPhone, Apple Watch hoặc AirPods đi xa khỏi Mac thì Mac tự khoá m�
 | `TetherCore/` | Swift package logic thuần: `ProximityEngine` (nhiều thiết bị, hysteresis, độ trễ), `RSSIHistory`, `Calibration`, `DistanceEstimate` (dBm → mét). Có unit test. |
 | `Tether/` | App thanh menu macOS 13+ (`com.simple.tether`): `BluetoothService`, `ScreenLocker`, `SystemObserver`, `SettingsStore`, UI. |
 | `scripts/icon/` | Bộ tạo icon Liquid Glass light dùng chung cho hệ sinh thái (`make-icon.py` + `tether.json`), xem `scripts/icon/README.md`. |
-| `scripts/render-art.swift` | Vẽ nền DMG. |
+| `scripts/dmg-art/` | Nền cửa sổ DMG (800×580) vẽ bằng HTML, có hướng dẫn mở lần đầu. Sửa `background.html` rồi chạy `render.sh` (cần Google Chrome) để xuất `scripts/assets/dmg-background*.png`. |
 | `scripts/make-dmg.sh` | Build Release universal và đóng gói DMG kéo-thả. |
 
 ## Chạy và đóng gói

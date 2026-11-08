@@ -1,4 +1,4 @@
-// Renders Tether's app icon and DMG background.
+// Renders Tether's legacy app icon artwork. (The DMG background lives in scripts/dmg-art/.)
 // Usage: swift scripts/render-art.swift <output-dir>
 import AppKit
 
@@ -86,32 +86,5 @@ png(CGSize(width: 1024, height: 1024), "icon_1024.png") { ctx, size in
     ctx.endTransparencyLayer()
 }
 
-// MARK: DMG background (660×400 @1x and @2x)
-for scale: CGFloat in [1, 2] {
-    png(CGSize(width: 660, height: 400), scale: scale, scale == 1 ? "dmg-background.png" : "dmg-background@2x.png") { ctx, size in
-        let grad = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
-                              colors: [color(0xF7F8FF), color(0xE6EBFF)] as CFArray, locations: [0, 1])!
-        ctx.drawLinearGradient(grad, start: CGPoint(x: 0, y: size.height), end: CGPoint(x: 0, y: 0), options: [])
-
-        // Arrow between the app (x=170) and Applications (x=490) icons, icon centre y = 400-200 = 200
-        ctx.setStrokeColor(color(0x5B6CFF, 0.55))
-        ctx.setLineWidth(5)
-        ctx.setLineCap(.round)
-        ctx.setLineDash(phase: 0, lengths: [2, 14])
-        ctx.move(to: CGPoint(x: 265, y: 200)); ctx.addLine(to: CGPoint(x: 385, y: 200)); ctx.strokePath()
-        ctx.setLineDash(phase: 0, lengths: [])
-        ctx.setLineJoin(.round)
-        ctx.move(to: CGPoint(x: 375, y: 214)); ctx.addLine(to: CGPoint(x: 395, y: 200)); ctx.addLine(to: CGPoint(x: 375, y: 186))
-        ctx.strokePath()
-
-        func text(_ s: String, y: CGFloat, size fs: CGFloat, weight: NSFont.Weight, color c: NSColor) {
-            let style = NSMutableParagraphStyle(); style.alignment = .center
-            let attr: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: fs, weight: weight), .foregroundColor: c, .paragraphStyle: style]
-            NSAttributedString(string: s, attributes: attr).draw(in: CGRect(x: 0, y: y, width: size.width, height: fs * 1.5))
-        }
-        text("Tether", y: 330, size: 26, weight: .bold, color: NSColor(red: 0.11, green: 0.16, blue: 0.42, alpha: 1))
-        text("Kéo Tether vào thư mục Applications để cài đặt", y: 300, size: 13, weight: .regular, color: NSColor(white: 0.35, alpha: 1))
-        text("Mang iPhone hoặc Apple Watch đi xa, Mac tự khoá.", y: 52, size: 12, weight: .regular, color: NSColor(white: 0.45, alpha: 1))
-    }
-}
+// The DMG background is drawn in scripts/dmg-art/background.html (rendered by scripts/dmg-art/render.sh).
 print("ok")
