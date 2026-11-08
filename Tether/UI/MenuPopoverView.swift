@@ -63,6 +63,7 @@ private struct StatusCard: View {
             }
             Spacer(minLength: 0)
             Toggle("Bật Tether", isOn: $settings.isEnabled)
+                .pointingHandCursor()
                 .toggleStyle(.switch)
                 .labelsHidden()
                 .controlSize(.small)
@@ -153,6 +154,7 @@ private struct ActionBar: View {
                 } label: {
                     Label("Tiếp tục", systemImage: "play.fill")
                 }
+                .pointingHandCursor()
             } else {
                 Menu {
                     Button("15 phút") { model.pause(for: 15 * 60) }
@@ -166,6 +168,7 @@ private struct ActionBar: View {
                 }
                 .menuStyle(.borderedButton)
                 .fixedSize()
+                .pointingHandCursor()
             }
 
             Spacer()
@@ -202,6 +205,7 @@ private struct IconButton: View {
                 .frame(width: 16, height: 16)
         }
         .buttonStyle(.borderless)
+        .pointingHandCursor()
         .help(help)
         .accessibilityLabel(help)
     }

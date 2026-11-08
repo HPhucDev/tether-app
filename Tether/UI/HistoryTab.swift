@@ -14,6 +14,7 @@ struct HistoryTab: View {
                     .font(.headline)
                 Spacer()
                 Button("Xoá lịch sử", role: .destructive) { confirmClear = true }
+                    .pointingHandCursor()
                     .disabled(history.events.isEmpty)
             }
 

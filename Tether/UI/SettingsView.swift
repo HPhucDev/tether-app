@@ -32,6 +32,7 @@ struct DevicesTab: View {
                     Picker("Khoá Mac khi", selection: $settings.lockPolicy) {
                         ForEach(LockPolicy.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
+                    .pointingHandCursor()
                     Text(settings.lockPolicy.explanation)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -42,6 +43,7 @@ struct DevicesTab: View {
                 ForEach(DeviceKind.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
+            .pointingHandCursor()
 
             Text("Đưa \(pickingFor.title) sát Mac rồi bấm vào thiết bị có sóng mạnh nhất. Không cần cài app gì lên \(pickingFor.title).")
                 .font(.callout)
@@ -76,6 +78,7 @@ struct TrackedDeviceRow: View {
             if isSet {
                 SignalBarsView(rssi: model.deviceRSSI[kind])
                 Button("Quên") { model.forget(kind) }
+                    .pointingHandCursor()
             }
         }
     }
@@ -95,6 +98,7 @@ struct DeviceListView: View {
         VStack(alignment: .leading, spacing: 6) {
             list
             Toggle("Hiện tất cả thiết bị xung quanh", isOn: $showAll)
+                .pointingHandCursor()
                 .font(.caption)
                 .help("Mặc định chỉ hiện thiết bị đăng nhập cùng Apple ID với Mac hoặc đã ghép đôi Bluetooth.")
         }
@@ -119,6 +123,7 @@ struct DeviceListView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .pointingHandCursor()
             .opacity(device.guessedKind == nil || device.guessedKind == pickingFor ? 1 : 0.5)
         }
         .overlay {
@@ -237,6 +242,7 @@ struct DistanceTab: View {
                     HStack {
                         Text("Chờ trước khi khoá")
                         Slider(value: $settings.lockDelay, in: 1...30, step: 1)
+                            .pointingHandCursor()
                         Text("\(Int(settings.lockDelay)) giây").monospacedDigit().frame(width: 60, alignment: .trailing)
                     }
                     Text("Bạn phải ở xa liên tục chừng này giây thì Mac mới khoá.")
@@ -244,6 +250,7 @@ struct DistanceTab: View {
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Button("Lấy vị trí hiện tại làm mức khoá") { model.calibrateFarHere() }
+                        .pointingHandCursor()
                         .disabled(model.currentRSSI == nil)
                     Text("Mang thiết bị tới chỗ muốn Mac khoá (ví dụ cửa phòng) rồi bấm.")
                         .font(.caption).foregroundStyle(.secondary)
@@ -284,6 +291,7 @@ struct ThresholdSlider: View {
             } maximumValueLabel: {
                 Text("Gần").font(.caption)
             }
+            .pointingHandCursor()
             Text(hint).font(.caption).foregroundStyle(.secondary)
         }
     }
@@ -292,21 +300,27 @@ struct ThresholdSlider: View {
 // MARK: - General
 
 struct GeneralTab: View {
+    @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var settings: SettingsStore
     @State private var launchAtLogin = LoginItem.isEnabled
+    @State private var confirmingReset = false
 
     var body: some View {
         Form {
             Picker("Icon ở Dock", selection: $settings.dockIconMode) {
                 ForEach(DockIconMode.allCases) { Text($0.title).tag($0) }
             }
+            .pointingHandCursor()
             .help("Tether luôn có icon trên thanh menu. “Khi mở cửa sổ”: chỉ hiện ở Dock lúc đang mở Cài đặt hoặc Thiết lập.")
             Toggle("Mở cùng máy", isOn: $launchAtLogin)
+                .pointingHandCursor()
                 .onChange(of: launchAtLogin) { LoginItem.setEnabled($0) }
             Picker("Khi Bluetooth tắt", selection: $settings.bluetoothOffAction) {
                 ForEach(BluetoothOffAction.allCases) { Text($0.title).tag($0) }
             }
+            .pointingHandCursor()
             Toggle("Thông báo khi khoá", isOn: $settings.notifyOnLock)
+                .pointingHandCursor()
                 .onChange(of: settings.notifyOnLock) { if $0 { Notifier.requestAuthorization() } }
 
             Section("Mở khoá nhanh") {
@@ -314,16 +328,39 @@ struct GeneralTab: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Button("Mở Touch ID & Mật khẩu…") { SystemSettings.openTouchIDAndPassword() }
+                    .pointingHandCursor()
+            }
+
+            Section {
+                LabeledContent {
+                    Button("Xem lại…") { OnboardingWindow.shared.show() }
+                        .pointingHandCursor()
+                } label: {
+                    Text("Hướng dẫn thiết lập")
+                    Text("Chọn lại thiết bị và đo lại khoảng cách khoá, từng bước như lần đầu.")
+                }
+                LabeledContent {
+                    Button("Đặt lại…", role: .destructive) { confirmingReset = true }
+                        .pointingHandCursor()
+                } label: {
+                    Text("Đặt lại Tether")
+                    Text("Quên thiết bị, đưa mọi cài đặt về mặc định và xoá lịch sử khoá.")
+                }
+            } header: {
+                Text("Hướng dẫn & đặt lại")
             }
         }
         .formStyle(.grouped)
-        .safeAreaInset(edge: .bottom) {
-            HStack {
-                Spacer()
-                Button("Chạy lại thiết lập lần đầu…") { OnboardingWindow.shared.show() }
+        .alert("Đặt lại Tether về mặc định?", isPresented: $confirmingReset) {
+            Button("Đặt lại", role: .destructive) {
+                model.resetToDefaults()
+                launchAtLogin = false
+                // No device is tracked any more: go pick one.
+                SettingsWindow.shared.show(tab: .devices)
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 16)
+            Button("Huỷ", role: .cancel) {}
+        } message: {
+            Text("Tether sẽ quên thiết bị đã chọn, đưa ngưỡng khoá và mọi tuỳ chỉnh về mặc định, tắt “Mở cùng máy” và xoá toàn bộ lịch sử khoá. Không thể hoàn tác.")
         }
         .onAppear { launchAtLogin = LoginItem.isEnabled }
     }

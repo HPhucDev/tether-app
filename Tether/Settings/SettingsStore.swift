@@ -60,6 +60,27 @@ final class SettingsStore: ObservableObject {
         dockIconMode = DockIconMode(rawValue: defaults.string(forKey: Keys.dock) ?? "") ?? .whileWindowOpen
     }
 
+    /// Forgets every device and preference. Onboarding stays marked as done:
+    /// resetting settings must not force the tutorial again.
+    func resetToDefaults() {
+        Keys.all.filter { $0 != Keys.onboarded }.forEach(defaults.removeObject(forKey:))
+        let d = ProximityConfiguration.default
+        isEnabled = true
+        phoneID = nil
+        phoneName = nil
+        watchID = nil
+        watchName = nil
+        otherID = nil
+        otherName = nil
+        lockPolicy = .allAway
+        farThreshold = d.farThreshold
+        nearThreshold = d.nearThreshold
+        lockDelay = d.lockDelay
+        bluetoothOffAction = .notifyOnly
+        notifyOnLock = true
+        dockIconMode = .whileWindowOpen
+    }
+
     var proximityConfiguration: ProximityConfiguration {
         var c = ProximityConfiguration.default
         c.farThreshold = farThreshold
@@ -142,5 +163,10 @@ final class SettingsStore: ObservableObject {
         static let notify = "notifyOnLock"
         static let onboarded = "hasCompletedOnboarding"
         static let dock = "dockIconMode"
+
+        static let all = [
+            enabled, phoneID, phoneName, watchID, watchName, otherID, otherName,
+            policy, far, near, delay, btOff, notify, onboarded, dock,
+        ]
     }
 }

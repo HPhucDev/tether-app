@@ -57,6 +57,7 @@ struct OnboardingView: View {
                 Button("Mở Cài đặt quyền Bluetooth") {
                     NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth")!)
                 }
+                .pointingHandCursor()
             }
         }
     }
@@ -81,6 +82,7 @@ struct OnboardingView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
+            .pointingHandCursor()
             HStack(alignment: .firstTextBaseline) {
                 Text("Đưa \(pickingFor.title) sát Mac rồi bấm vào thiết bị có sóng mạnh nhất. Không cần cài app gì lên \(pickingFor.title).")
                     .font(.callout).foregroundStyle(.secondary)
@@ -100,6 +102,7 @@ struct OnboardingView: View {
             Text("Để \(calibrationDeviceName) ở chỗ bạn hay để khi làm việc (trên bàn, trong túi…). Tether sẽ đo trong 8 giây.")
             measureView(deskMeasure)
             Button("Bắt đầu đo") { Task { await run(desk: true, countdown: 0) } }
+                .pointingHandCursor()
                 .disabled(isBusy(deskMeasure))
         }
     }
@@ -110,6 +113,7 @@ struct OnboardingView: View {
             Text("Bấm nút, rồi trong 10 giây mang thiết bị tới chỗ mà từ đó Mac nên khoá (ví dụ cửa phòng). Đứng yên ở đó tới khi nghe tiếng báo, rồi quay lại.")
             measureView(awayMeasure)
             Button("Bắt đầu (đo sau 10 giây)") { Task { await run(desk: false, countdown: 10) } }
+                .pointingHandCursor()
                 .disabled(isBusy(awayMeasure))
             if case .finished = awayMeasure, result == nil {
                 Text("Hai vị trí có sóng quá giống nhau. Hãy đi xa hơn rồi đo lại, hoặc chỉnh tay trong Cài đặt.")
@@ -139,12 +143,15 @@ struct OnboardingView: View {
         HStack {
             if step != .permission && step != .done {
                 Button("Quay lại") { step = Step(rawValue: step.rawValue - 1) ?? .permission }
+                    .pointingHandCursor()
             }
             Spacer()
             if step == .desk || step == .away {
                 Button("Bỏ qua hiệu chỉnh") { result = nil; step = .done }
+                    .pointingHandCursor()
             }
             Button(step == .done ? "Hoàn tất" : "Tiếp tục") { next() }
+                .pointingHandCursor()
                 .keyboardShortcut(.defaultAction)
                 .disabled(!canContinue)
         }

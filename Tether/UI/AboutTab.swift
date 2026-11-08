@@ -33,7 +33,7 @@ struct AboutTab: View {
                         .fixedSize(horizontal: false, vertical: true)
                     AboutFooter()
                     CoffeeButton(name: "S1mple")
-                        .padding(.top, 4)
+                        .padding(.top, 20)
                 }
             }
             .padding(28)
@@ -126,6 +126,7 @@ private struct AboutFooter: View {
             ForEach(Self.links.filter { $0.url != nil }, id: \.title) { link in
                 Text("·")
                 Link(link.title, destination: link.url!)
+                    .pointingHandCursor()
                     .foregroundStyle(Color.accentColor)
             }
         }
@@ -134,7 +135,7 @@ private struct AboutFooter: View {
     }
 }
 
-/// "☕ Một ly cà phê cho S1mple": hover or click shows the donate QR card (same as the website).
+/// "☕ Một ly cà phê cho S1mple": click shows the donate QR card. No hover, so it never pops up by accident.
 private struct CoffeeButton: View {
     let name: String
     @State private var isShown = false
@@ -148,9 +149,7 @@ private struct CoffeeButton: View {
                 .underline()
         }
         .buttonStyle(.plain)
-        .onHover { hovering in
-            if hovering { isShown = true }
-        }
+        .pointingHandCursor()
         .popover(isPresented: $isShown, arrowEdge: .top) {
             VStack(spacing: 10) {
                 Image("DonateQR")

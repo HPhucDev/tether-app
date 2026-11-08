@@ -89,7 +89,7 @@ final class SettingsWindow: ManagedWindow {
         add(DevicesTab().frame(width: 560, height: 580), "Thiết bị", "iphone")
         add(DistanceTab().frame(width: 600, height: 760), "Khoảng cách", "dot.radiowaves.left.and.right")
         add(HistoryTab().frame(width: 560, height: 520), "Lịch sử", "clock.arrow.circlepath")
-        add(GeneralTab().frame(width: 560, height: 440), "Chung", "gearshape")
+        add(GeneralTab().frame(width: 560, height: 560), "Chung", "gearshape")
         add(AboutTab().frame(width: 600, height: 760), "Giới thiệu", "info.circle")
         return tabs
     }
@@ -134,5 +134,6 @@ struct OpenSettingsButton: View {
 
     var body: some View {
         Button(title) { SettingsWindow.shared.show(tab: tab) }
+            .pointingHandCursor()
     }
 }

@@ -94,6 +94,7 @@ struct AccuracyInfo: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .pointingHandCursor()
         .help(Self.text)
         .accessibilityLabel("Giải thích độ chính xác")
         .popover(isPresented: $isShown, arrowEdge: .bottom) {

@@ -149,6 +149,20 @@ final class AppModel: ObservableObject {
         retarget(kind)
     }
 
+    /// Settings back to defaults: forgets devices, thresholds and preferences, clears the lock history
+    /// and turns off "open at login". Does not re-run onboarding.
+    func resetToDefaults() {
+        settings.resetToDefaults()
+        lockHistory.clear()
+        LoginItem.setEnabled(false)
+        engine.resume()
+        engine.resetTracking()
+        for kind in DeviceKind.allCases { retarget(kind) }
+        clearHistory()
+        applySettings()
+        log.notice("Reset to defaults")
+    }
+
     /// Distance tab: current position becomes the "far" threshold.
     func calibrateFarHere() {
         guard let r = engine.smoothedRSSI else { return }
