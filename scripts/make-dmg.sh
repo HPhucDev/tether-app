@@ -48,10 +48,6 @@ DEVICE=$(hdiutil attach -readwrite -noverify -noautoopen "$RW" | awk '/Apple_HFS
 MOUNT="/Volumes/$VOLNAME"
 sleep 1
 
-if command -v SetFile >/dev/null && [[ -f "$MOUNT/.VolumeIcon.icns" ]]; then
-  SetFile -a C "$MOUNT"
-fi
-
 echo "▸ Arranging window (Finder may ask for permission once)…"
 if ! osascript <<OSA
 tell application "Finder"
@@ -76,6 +72,16 @@ end tell
 OSA
 then
   echo "  ⚠︎ Could not style the window (Finder automation denied). The DMG still works."
+fi
+
+# Volume icon goes on after the Finder step: Finder deletes .VolumeIcon.icns
+# while it rewrites the window layout.
+if [[ -f "$STAGE/.VolumeIcon.icns" ]]; then
+  cp "$STAGE/.VolumeIcon.icns" "$MOUNT/.VolumeIcon.icns"
+  if command -v SetFile >/dev/null; then
+    SetFile -a V "$MOUNT/.VolumeIcon.icns"
+    SetFile -a C "$MOUNT"
+  fi
 fi
 
 chmod -Rf go-w "$MOUNT" || true
