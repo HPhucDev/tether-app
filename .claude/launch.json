@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "tether-web", "runtimeExecutable": "npm", "runtimeArgs": ["--prefix", "/Volumes/Data/LightUP/tether website", "run", "dev"], "port": 3000 }
+  ]
+}

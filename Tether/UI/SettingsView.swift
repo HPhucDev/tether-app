@@ -1,0 +1,330 @@
+import AppKit
+import Charts
+import SwiftUI
+import TetherCore
+
+// MARK: - Devices
+
+struct DevicesTab: View {
+    @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var settings: SettingsStore
+    @State private var pickingFor: DeviceKind = .iPhone
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            GroupBox {
+                VStack(spacing: 8) {
+                    ForEach(DeviceKind.allCases) { kind in
+                        if kind != DeviceKind.allCases.first { Divider() }
+                        TrackedDeviceRow(kind: kind)
+                    }
+                }
+                .padding(4)
+            } label: {
+                HStack(spacing: 4) {
+                    Text("Thiết bị đang theo dõi")
+                    AccuracyInfo()
+                }
+            }
+
+            if settings.hasMultipleDevices {
+                VStack(alignment: .leading, spacing: 4) {
+                    Picker("Khoá Mac khi", selection: $settings.lockPolicy) {
+                        ForEach(LockPolicy.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    Text(settings.lockPolicy.explanation)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Picker("Chọn thiết bị cho", selection: $pickingFor) {
+                ForEach(DeviceKind.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+
+            Text("Đưa \(pickingFor.title) sát Mac rồi bấm vào thiết bị có sóng mạnh nhất. Không cần cài app gì lên \(pickingFor.title).")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            DeviceListView(pickingFor: pickingFor)
+        }
+        .padding()
+        .onAppear { model.setVisible(.settingsDevices, true) }
+        .onDisappear { model.setVisible(.settingsDevices, false) }
+    }
+}
+
+struct TrackedDeviceRow: View {
+    @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var settings: SettingsStore
+    let kind: DeviceKind
+
+    var body: some View {
+        let isSet = settings.deviceID(kind) != nil
+        HStack {
+            Image(systemName: kind.symbol).font(.title2).frame(width: 28)
+            VStack(alignment: .leading) {
+                Text(settings.deviceName(kind) ?? "Chưa chọn \(kind.title)")
+                    .foregroundStyle(isSet ? .primary : .secondary)
+                if isSet {
+                    Text(model.connection(kind).title).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            if isSet {
+                SignalBarsView(rssi: model.deviceRSSI[kind])
+                Button("Quên") { model.forget(kind) }
+            }
+        }
+    }
+}
+
+struct DeviceListView: View {
+    @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var settings: SettingsStore
+    let pickingFor: DeviceKind
+    @State private var showAll = false
+
+    private var visibleDevices: [DiscoveredDevice] {
+        model.devices.filter { showAll || $0.isMine || assignedKind($0) != nil }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            list
+            Toggle("Hiện tất cả thiết bị xung quanh", isOn: $showAll)
+                .font(.caption)
+                .help("Mặc định chỉ hiện thiết bị đăng nhập cùng Apple ID với Mac hoặc đã ghép đôi Bluetooth.")
+        }
+    }
+
+    private var list: some View {
+        List(visibleDevices) { device in
+            Button {
+                model.select(device, as: pickingFor)
+            } label: {
+                HStack {
+                    Image(systemName: device.guessedKind?.symbol ?? "dot.radiowaves.right")
+                        .frame(width: 20)
+                    Text(device.displayName)
+                    Spacer()
+                    SignalBarsView(rssi: Double(device.rssi))
+                    RSSIText(rssi: Double(device.rssi)).frame(width: 120, alignment: .trailing)
+                    Image(systemName: assignedKind(device)?.symbol ?? "checkmark")
+                        .frame(width: 16)
+                        .opacity(assignedKind(device) == nil ? 0 : 1)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .opacity(device.guessedKind == nil || device.guessedKind == pickingFor ? 1 : 0.5)
+        }
+        .overlay {
+            if visibleDevices.isEmpty {
+                Text(emptyText)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
+                    .padding()
+            }
+        }
+        .frame(minHeight: 160)
+    }
+
+    private var emptyText: String {
+        if model.power != .poweredOn { return "Bluetooth chưa sẵn sàng" }
+        if model.devices.isEmpty || showAll { return "Đang quét…" }
+        return "Chưa thấy thiết bị nào của bạn.\nThiết bị cần đăng nhập cùng Apple ID với Mac, hoặc đã ghép đôi Bluetooth."
+    }
+
+    private func assignedKind(_ device: DiscoveredDevice) -> DeviceKind? {
+        DeviceKind.allCases.first { settings.deviceID($0) == device.id }
+    }
+}
+
+extension LockPolicy {
+    var title: String {
+        switch self {
+        case .allAway: return "Tất cả đều đi xa"
+        case .anyAway: return "Bất kỳ thiết bị nào đi xa"
+        }
+    }
+
+    var explanation: String {
+        switch self {
+        case .allAway: return "Còn một thiết bị ở gần thì coi như bạn vẫn ngồi đó. Hợp khi bạn hay để iPhone trên bàn và đeo Watch."
+        case .anyAway: return "Chặt hơn: chỉ cần một thiết bị đi xa là khoá. Thiết bị chưa từng ở gần (ví dụ AirPods đang trong hộp) sẽ được bỏ qua."
+        }
+    }
+}
+
+// MARK: - Distance
+
+struct DistanceTab: View {
+    @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var lockHistory: LockHistory
+
+    private var farBinding: Binding<Double> {
+        Binding(
+            get: { settings.farThreshold },
+            set: {
+                settings.farThreshold = $0
+                if settings.nearThreshold < $0 + 3 { settings.nearThreshold = $0 + 3 }
+            })
+    }
+
+    private var nearBinding: Binding<Double> {
+        Binding(
+            get: { settings.nearThreshold },
+            set: {
+                settings.nearThreshold = $0
+                if settings.farThreshold > $0 - 3 { settings.farThreshold = $0 - 3 }
+            })
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                ForEach(settings.trackedKinds) { kind in
+                    HStack {
+                        Image(systemName: kind.symbol).frame(width: 20)
+                        Text(settings.deviceName(kind) ?? kind.title)
+                        Spacer()
+                        SignalBarsView(rssi: model.deviceRSSI[kind])
+                        Text(model.deviceRSSI[kind].map(DistanceText.describe) ?? "Chưa có tín hiệu")
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                if !settings.hasAnyDevice {
+                    Text("Chưa chọn thiết bị nào.").foregroundStyle(.secondary)
+                }
+                SignalChartView(
+                    samples: model.historySamples,
+                    events: lockHistory.events,
+                    lockDelay: settings.lockDelay,
+                    signalTimeout: settings.proximityConfiguration.signalTimeout,
+                    far: farBinding,
+                    near: nearBinding)
+                    .frame(height: 250)
+                    .padding(.vertical, 4)
+                Text("Kéo đường đỏ (mức khoá) hoặc đường xanh (mức quay lại) để chỉnh. Mỗi lần khoá có dấu 🔒, vùng cam là khoảng thời gian chờ trước khi khoá.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } header: {
+                HStack(spacing: 4) {
+                    Text("Sóng 5 phút gần nhất")
+                    AccuracyInfo()
+                }
+            }
+
+            Section("Khi nào khoá") {
+                ThresholdSlider(
+                    title: "Khoá khi thiết bị ra xa tới mức",
+                    hint: "Kéo về phía Xa nếu Mac hay khoá nhầm khi bạn vẫn ngồi ở bàn. Số mét chỉ là ước lượng.",
+                    value: farBinding)
+                if settings.farThreshold >= -60 {
+                    Label("Mức khoá chỉ \(DistanceEstimate.text(rssi: settings.farThreshold)): Mac có thể khoá cả khi bạn ngồi ngay cạnh.", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+                ThresholdSlider(
+                    title: "Tính là đã quay lại khi gần tới mức",
+                    hint: "Nên gần hơn mức khoá một chút, để Mac không khoá rồi lại coi là quay lại liên tục khi sóng chập chờn.",
+                    value: nearBinding)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack {
+                        Text("Chờ trước khi khoá")
+                        Slider(value: $settings.lockDelay, in: 1...30, step: 1)
+                        Text("\(Int(settings.lockDelay)) giây").monospacedDigit().frame(width: 60, alignment: .trailing)
+                    }
+                    Text("Bạn phải ở xa liên tục chừng này giây thì Mac mới khoá.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Button("Lấy vị trí hiện tại làm mức khoá") { model.calibrateFarHere() }
+                        .disabled(model.currentRSSI == nil)
+                    Text("Mang thiết bị tới chỗ muốn Mac khoá (ví dụ cửa phòng) rồi bấm.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear { model.setVisible(.settingsDistance, true) }
+        .onDisappear { model.setVisible(.settingsDistance, false) }
+    }
+}
+
+enum DistanceText {
+    /// "≈ 4 m · Vừa · −72 dBm"
+    static func describe(_ rssi: Double) -> String {
+        "\(DistanceEstimate.text(rssi: rssi)) · \(DistanceLabel(rssi: rssi).rawValue) · \(Int(rssi.rounded())) dBm"
+    }
+}
+
+struct ThresholdSlider: View {
+    let title: String
+    let hint: String
+    @Binding var value: Double
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(title)
+                Spacer()
+                Text(DistanceText.describe(value))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: $value, in: -100...(-40), step: 1) {
+                EmptyView()
+            } minimumValueLabel: {
+                Text("Xa").font(.caption)
+            } maximumValueLabel: {
+                Text("Gần").font(.caption)
+            }
+            Text(hint).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+}
+
+// MARK: - General
+
+struct GeneralTab: View {
+    @EnvironmentObject private var settings: SettingsStore
+    @State private var launchAtLogin = LoginItem.isEnabled
+
+    var body: some View {
+        Form {
+            Picker("Icon ở Dock", selection: $settings.dockIconMode) {
+                ForEach(DockIconMode.allCases) { Text($0.title).tag($0) }
+            }
+            .help("Tether luôn có icon trên thanh menu. “Khi mở cửa sổ”: chỉ hiện ở Dock lúc đang mở Cài đặt hoặc Thiết lập.")
+            Toggle("Mở cùng máy", isOn: $launchAtLogin)
+                .onChange(of: launchAtLogin) { LoginItem.setEnabled($0) }
+            Picker("Khi Bluetooth tắt", selection: $settings.bluetoothOffAction) {
+                ForEach(BluetoothOffAction.allCases) { Text($0.title).tag($0) }
+            }
+            Toggle("Thông báo khi khoá", isOn: $settings.notifyOnLock)
+                .onChange(of: settings.notifyOnLock) { if $0 { Notifier.requestAuthorization() } }
+
+            Section("Mở khoá nhanh") {
+                Text("Tether chỉ khoá, không tự mở khoá. Để mở nhanh, bật “Dùng Apple Watch để mở khoá” trong Cài đặt hệ thống › Touch ID & Mật khẩu.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                Button("Mở Touch ID & Mật khẩu…") { SystemSettings.openTouchIDAndPassword() }
+            }
+        }
+        .formStyle(.grouped)
+        .safeAreaInset(edge: .bottom) {
+            HStack {
+                Spacer()
+                Button("Chạy lại thiết lập lần đầu…") { OnboardingWindow.shared.show() }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 16)
+        }
+        .onAppear { launchAtLogin = LoginItem.isEnabled }
+    }
+}

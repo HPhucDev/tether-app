@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs>
+  <linearGradient id="base" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#3E83FF"/>
+    <stop offset="0.55" stop-color="#1F6FFF"/>
+    <stop offset="1" stop-color="#1D66EB"/>
+  </linearGradient>
+  <radialGradient id="hi" cx="0.35" cy="0.18" r="0.55">
+    <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.3"/>
+    <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+  </radialGradient>
+  <clipPath id="clip"><path fill-rule="evenodd" d="M396.0,520 H628.0 A84,84 0 0 1 712.0,604 V716 A84,84 0 0 1 628.0,800 H396.0 A84,84 0 0 1 312.0,716 V604 A84,84 0 0 1 396.0,520 Z M474,660 A38,38 0 1 0 550,660 A38,38 0 1 0 474,660 Z"/></clipPath>
+</defs>
+<g opacity="1.0">
+  <path fill-rule="evenodd" fill="url(#base)" d="M396.0,520 H628.0 A84,84 0 0 1 712.0,604 V716 A84,84 0 0 1 628.0,800 H396.0 A84,84 0 0 1 312.0,716 V604 A84,84 0 0 1 396.0,520 Z M474,660 A38,38 0 1 0 550,660 A38,38 0 1 0 474,660 Z"/>
+  <rect clip-path="url(#clip)" x="0" y="0" width="1024" height="1024" fill="url(#hi)"/>
+</g>
+</svg>

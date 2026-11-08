@@ -1,0 +1,270 @@
+import AppKit
+import Combine
+import Foundation
+import os
+import TetherCore
+
+/// Wires Bluetooth, the proximity engine, the locker and system events together.
+@MainActor
+final class AppModel: ObservableObject {
+    static let shared = AppModel()
+
+    enum Surface: Hashable { case popover, settingsDevices, settingsDistance, onboarding }
+
+    let settings = SettingsStore()
+    let lockHistory = LockHistory()
+
+    @Published private(set) var status: ProximityStatus = .searching
+    @Published private(set) var power: BluetoothPower = .unknown
+    @Published private(set) var connections: [DeviceKind: ConnectionState] = [:]
+    /// Strongest smoothed RSSI across devices; refreshed only while a UI surface is visible.
+    @Published private(set) var currentRSSI: Double?
+    /// Smoothed RSSI per device; refreshed only while a UI surface is visible.
+    @Published private(set) var deviceRSSI: [DeviceKind: Double] = [:]
+    @Published private(set) var devices: [DiscoveredDevice] = []
+    @Published private(set) var historySamples: [DeviceKind: [RSSISample]] = [:]
+
+    private let log = Logger(subsystem: "com.simple.tether", category: "engine")
+    private let bluetooth = BluetoothService()
+    private let locker = ScreenLocker()
+    private let system = SystemObserver()
+    private var engine = ProximityEngine()
+    private var histories: [DeviceKind: RSSIHistory] = Dictionary(uniqueKeysWithValues: DeviceKind.allCases.map { ($0, RSSIHistory(window: 300, capacity: 256)) })
+    private var timer: Timer?
+    private var visibleSurfaces: Set<Surface> = []
+    private var calibrationBuffer: [Double]?
+    private var cancellables: Set<AnyCancellable> = []
+    private var started = false
+
+    private init() {}
+
+    func start() {
+        guard !started else { return }
+        started = true
+
+        applySettings()
+        settings.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.applySettings() }
+            .store(in: &cancellables)
+
+        bluetooth.onPowerChange = { [weak self] in self?.handlePower($0) }
+        bluetooth.onConnectionChange = { [weak self] kind, state in self?.connections[kind] = state }
+        bluetooth.onRSSI = { [weak self] kind, rssi, date in self?.handleRSSI(rssi, from: kind, at: date) }
+        bluetooth.onDevices = { [weak self] in self?.devices = $0 }
+        bluetooth.onTargetMoved = { [weak self] kind, id in
+            guard let self else { return }
+            self.settings.setDeviceID(kind, id)
+        }
+        for kind in DeviceKind.allCases { bluetooth.setTarget(settings.target(kind), for: kind) }
+
+        // Nothing to decide while the screen is locked or the Mac sleeps, so Bluetooth scanning stops entirely.
+        system.onScreenLocked = { [weak self] in
+            guard let self else { return }
+            self.engine.screenDidLock()
+            self.bluetooth.setSuspended(true)
+            self.log.info("Screen locked: scanning paused")
+        }
+        system.onScreenUnlocked = { [weak self] in
+            guard let self else { return }
+            self.engine.screenDidUnlock(at: Date())
+            self.bluetooth.setSuspended(false)
+            self.log.info("Screen unlocked: scanning resumed")
+            self.refreshStatus()
+        }
+        system.onWillSleep = { [weak self] in
+            guard let self else { return }
+            self.engine.resetTracking()
+            self.bluetooth.setSuspended(true)
+            self.log.info("Will sleep: tracking reset, scanning paused")
+        }
+        system.onDidWake = { [weak self] in
+            guard let self else { return }
+            self.engine.resetTracking()
+            self.clearHistory()
+            self.bluetooth.setSuspended(SystemObserver.isScreenLockedNow)
+            self.bluetooth.restart()
+            self.log.info("Did wake: tracking reset")
+        }
+        system.start()
+        if SystemObserver.isScreenLockedNow {
+            engine.screenDidLock()
+            bluetooth.setSuspended(true)
+        }
+
+        if settings.notifyOnLock { Notifier.requestAuthorization() }
+
+        let t = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tick() }
+        }
+        t.tolerance = 0.5
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
+    }
+
+    // MARK: UI visibility (gates expensive updates)
+
+    func setVisible(_ surface: Surface, _ visible: Bool) {
+        if visible { visibleSurfaces.insert(surface) } else { visibleSurfaces.remove(surface) }
+        bluetooth.setDiscoveryActive(!visibleSurfaces.isDisjoint(with: [.settingsDevices, .onboarding]))
+        if visible { refreshLiveData() }
+    }
+
+    private var wantsLiveRSSI: Bool { !visibleSurfaces.isEmpty }
+    private var wantsChart: Bool { !visibleSurfaces.isDisjoint(with: [.settingsDistance, .onboarding]) }
+
+    // MARK: Actions
+
+    var pausedUntil: Date? { engine.isPaused(at: Date()) ? engine.pausedUntil : nil }
+
+    func pause(for interval: TimeInterval) {
+        engine.pause(until: Date().addingTimeInterval(interval))
+        log.info("Paused for \(Int(interval))s")
+        refreshStatus()
+    }
+
+    func resume() {
+        engine.resume()
+        refreshStatus()
+    }
+
+    func testLock() {
+        lock(reason: .test)
+    }
+
+    func connection(_ kind: DeviceKind) -> ConnectionState { connections[kind] ?? .idle }
+
+    func select(_ device: DiscoveredDevice, as kind: DeviceKind) {
+        // The same peripheral can't be both devices.
+        for other in DeviceKind.allCases where other != kind && settings.deviceID(other) == device.id {
+            settings.setDevice(other, id: nil, name: nil)
+            retarget(other)
+        }
+        settings.setDevice(kind, id: device.id, name: device.displayName)
+        retarget(kind)
+    }
+
+    func forget(_ kind: DeviceKind) {
+        settings.setDevice(kind, id: nil, name: nil)
+        retarget(kind)
+    }
+
+    /// Distance tab: current position becomes the "far" threshold.
+    func calibrateFarHere() {
+        guard let r = engine.smoothedRSSI else { return }
+        settings.farThreshold = r.rounded()
+        settings.nearThreshold = max(settings.nearThreshold, settings.farThreshold + 8)
+    }
+
+    /// Averages raw RSSI samples over `duration` seconds (onboarding calibration).
+    func measureAverageRSSI(duration: TimeInterval) async -> Double? {
+        calibrationBuffer = []
+        try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
+        let values = calibrationBuffer ?? []
+        calibrationBuffer = nil
+        return Calibration.average(values)
+    }
+
+    // MARK: Internals
+
+    private func retarget(_ kind: DeviceKind) {
+        engine.removeDevice(kind.rawValue)
+        histories[kind]?.removeAll()
+        deviceRSSI[kind] = nil
+        historySamples[kind] = nil
+        currentRSSI = engine.smoothedRSSI
+        bluetooth.setTarget(settings.target(kind), for: kind)
+        refreshStatus()
+    }
+
+    private func clearHistory() {
+        for k in histories.keys { histories[k]?.removeAll() }
+        historySamples = [:]
+    }
+
+    /// Device used for onboarding calibration: the first one chosen (iPhone, then Watch, then other).
+    var calibrationKind: DeviceKind { settings.trackedKinds.first ?? .iPhone }
+
+    private func applySettings() {
+        engine.configuration = settings.proximityConfiguration
+        engine.isEnabled = settings.isEnabled
+        engine.policy = settings.lockPolicy
+        if WindowFocus.dockMode != settings.dockIconMode { WindowFocus.dockMode = settings.dockIconMode }
+    }
+
+    private func handleRSSI(_ rssi: Double, from kind: DeviceKind, at date: Date) {
+        engine.ingest(rssi: rssi, at: date, device: kind.rawValue)
+        histories[kind]?.append(RSSISample(date: date, rssi: rssi))
+        if kind == calibrationKind { calibrationBuffer?.append(rssi) }
+        log.debug("RSSI \(kind.rawValue, privacy: .public) \(rssi, format: .fixed(precision: 0)) smoothed \(self.engine.smoothedRSSI(for: kind.rawValue) ?? 0, format: .fixed(precision: 1))")
+    }
+
+    private func handlePower(_ newPower: BluetoothPower) {
+        let previous = power
+        power = newPower
+        let available = newPower == .poweredOn
+        if !available && previous == .poweredOn {
+            let now = Date()
+            let couldLock = engine.isArmed && engine.isEnabled && !engine.isPaused(at: now) && !engine.isScreenLocked
+            engine.resetTracking()
+            if settings.bluetoothOffAction == .lock && couldLock {
+                lock(reason: .bluetoothOff)
+            } else if settings.isEnabled {
+                Notifier.post(title: "Tether tạm ngưng", body: "Bluetooth đã tắt nên Tether không thể theo dõi thiết bị.")
+            }
+        }
+        engine.isBluetoothAvailable = available
+        refreshStatus()
+    }
+
+    private func tick() {
+        let now = Date()
+        let lost = engine.isSignalLost(at: now)
+        if engine.evaluate(at: now) == .lock {
+            lock(reason: lost ? .signalLost : .walkedAway)
+        }
+        refreshStatus(at: now)
+        if wantsLiveRSSI || wantsChart { refreshLiveData(at: now) }
+    }
+
+    private func refreshStatus(at now: Date = Date()) {
+        let s = engine.status(at: now)
+        if s != status {
+            log.info("Status \(String(describing: self.status), privacy: .public) -> \(String(describing: s), privacy: .public)")
+            status = s
+        }
+    }
+
+    private func refreshLiveData(at now: Date = Date()) {
+        if currentRSSI != engine.smoothedRSSI { currentRSSI = engine.smoothedRSSI }
+        var perDevice: [DeviceKind: Double] = [:]
+        for k in DeviceKind.allCases { perDevice[k] = engine.smoothedRSSI(for: k.rawValue) }
+        if perDevice != deviceRSSI { deviceRSSI = perDevice }
+        if wantsChart {
+            var samples: [DeviceKind: [RSSISample]] = [:]
+            for (k, h) in histories where settings.deviceID(k) != nil { samples[k] = h.samples(asOf: now) }
+            historySamples = samples
+        }
+    }
+
+    private func lock(reason: LockReason) {
+        let now = Date()
+        // Snapshot what each device looked like at the moment of locking (for the History tab).
+        let readings = settings.trackedKinds.map { kind in
+            LockEvent.Reading(
+                kind: kind.rawValue,
+                name: settings.deviceName(kind),
+                rssi: engine.devices[kind.rawValue].flatMap { d in
+                    d.isSignalLost(at: now, timeout: engine.configuration.signalTimeout) ? nil : d.smoothedRSSI
+                })
+        }
+        locker.lock { [weak self] method in MainActor.assumeIsolated {
+            guard let self else { return }
+            self.log.notice("Locked (\(reason.rawValue, privacy: .public)) via \(method.rawValue, privacy: .public)")
+            self.lockHistory.record(LockEvent(date: now, reason: reason, method: method.rawValue, readings: readings))
+            if self.settings.notifyOnLock && reason != .test {
+                Notifier.post(title: "Tether đã khoá Mac", body: reason.title)
+            }
+        } }
+    }
+}
