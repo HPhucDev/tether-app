@@ -13,6 +13,11 @@ final class AppModel: ObservableObject {
 
     let settings = SettingsStore()
     let lockHistory = LockHistory()
+    let deskTime = DeskTimeStore()
+    let newFeatures = NewFeatureStore()
+
+    /// Tether is switched on but the schedule says "not now".
+    @Published private(set) var isOffSchedule = false
 
     @Published private(set) var status: ProximityStatus = .searching
     @Published private(set) var power: BluetoothPower = .unknown
@@ -25,7 +30,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var historySamples: [DeviceKind: [RSSISample]] = [:]
 
     private let log = Logger(subsystem: "com.simple.tether", category: "engine")
-    private let bluetooth = BluetoothService()
+    /// Created on first use (start), so merely touching AppModel never opens Bluetooth.
+    private lazy var bluetooth = BluetoothService()
     private let locker = ScreenLocker()
     private let system = SystemObserver()
     private var engine = ProximityEngine()
@@ -62,8 +68,13 @@ final class AppModel: ObservableObject {
         system.onScreenLocked = { [weak self] in
             guard let self else { return }
             self.engine.screenDidLock()
-            self.bluetooth.setSuspended(true)
-            self.log.info("Screen locked: scanning paused")
+            if self.engine.isWaitingForReturn && self.wantsReturnEvent {
+                // Keep listening so we notice you coming back (wake the display / run a shortcut).
+                self.log.info("Screen locked: still listening for your return")
+            } else {
+                self.bluetooth.setSuspended(true)
+                self.log.info("Screen locked: scanning paused")
+            }
         }
         system.onScreenUnlocked = { [weak self] in
             guard let self else { return }
@@ -74,6 +85,7 @@ final class AppModel: ObservableObject {
         }
         system.onWillSleep = { [weak self] in
             guard let self else { return }
+            self.deskTime.save()
             self.engine.resetTracking()
             self.bluetooth.setSuspended(true)
             self.log.info("Will sleep: tracking reset, scanning paused")
@@ -92,7 +104,7 @@ final class AppModel: ObservableObject {
             bluetooth.setSuspended(true)
         }
 
-        if settings.notifyOnLock { Notifier.requestAuthorization() }
+        if settings.notifyOnLock || settings.breakReminder { Notifier.requestAuthorization() }
 
         let t = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
@@ -105,6 +117,7 @@ final class AppModel: ObservableObject {
     // MARK: UI visibility (gates expensive updates)
 
     func setVisible(_ surface: Surface, _ visible: Bool) {
+        guard started else { return }
         if visible { visibleSurfaces.insert(surface) } else { visibleSurfaces.remove(surface) }
         bluetooth.setDiscoveryActive(!visibleSurfaces.isDisjoint(with: [.settingsDevices, .onboarding]))
         if visible { refreshLiveData() }
@@ -132,6 +145,11 @@ final class AppModel: ObservableObject {
         lock(reason: .test)
     }
 
+    /// "Lock now" from the Shortcuts app.
+    func lockFromShortcut() {
+        lock(reason: .shortcut)
+    }
+
     func connection(_ kind: DeviceKind) -> ConnectionState { connections[kind] ?? .idle }
 
     func select(_ device: DiscoveredDevice, as kind: DeviceKind) {
@@ -154,6 +172,7 @@ final class AppModel: ObservableObject {
     func resetToDefaults() {
         settings.resetToDefaults()
         lockHistory.clear()
+        deskTime.clear()
         LoginItem.setEnabled(false)
         engine.resume()
         engine.resetTracking()
@@ -199,9 +218,17 @@ final class AppModel: ObservableObject {
     /// Device used for onboarding calibration: the first one chosen (iPhone, then Watch, then other).
     var calibrationKind: DeviceKind { settings.trackedKinds.first ?? .iPhone }
 
-    private func applySettings() {
+    /// Something should happen when you come back, so it's worth listening while the screen is locked.
+    private var wantsReturnEvent: Bool {
+        settings.wakeOnReturn || !settings.returnShortcut.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private func applySettings(at now: Date = Date()) {
         engine.configuration = settings.proximityConfiguration
-        engine.isEnabled = settings.isEnabled
+        let inSchedule = settings.isWithinSchedule(at: now)
+        engine.isEnabled = settings.isEnabled && inSchedule
+        let offSchedule = settings.isEnabled && !inSchedule
+        if offSchedule != isOffSchedule { isOffSchedule = offSchedule }
         engine.policy = settings.lockPolicy
         if WindowFocus.dockMode != settings.dockIconMode { WindowFocus.dockMode = settings.dockIconMode }
     }
@@ -233,10 +260,18 @@ final class AppModel: ObservableObject {
 
     private func tick() {
         let now = Date()
+        // The schedule can switch protection on or off as the clock moves.
+        if settings.scheduleEnabled, (settings.isEnabled && !settings.isWithinSchedule(at: now)) != isOffSchedule {
+            applySettings(at: now)
+        }
+
         let lost = engine.isSignalLost(at: now)
+        let wasWaitingForReturn = engine.isWaitingForReturn
         if engine.evaluate(at: now) == .lock {
             lock(reason: lost ? .signalLost : .walkedAway)
         }
+        if wasWaitingForReturn && !engine.isWaitingForReturn { userDidReturn() }
+        trackDeskTime(at: now)
         refreshStatus(at: now)
         if wantsLiveRSSI || wantsChart { refreshLiveData(at: now) }
     }
@@ -261,6 +296,26 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// A device came back near after Tether locked the Mac.
+    private func userDidReturn() {
+        log.notice("You came back")
+        let locked = SystemObserver.isScreenLockedNow
+        if settings.wakeOnReturn && locked { DisplayWaker.wake() }
+        ShortcutRunner.run(settings.returnShortcut)
+        // Done listening: back to the battery-friendly state until the screen is unlocked.
+        if locked { bluetooth.setSuspended(true) }
+    }
+
+    private func trackDeskTime(at now: Date) {
+        let present = settings.hasAnyDevice && power == .poweredOn && !engine.isScreenLocked && !engine.isAway(at: now)
+        let remind = deskTime.update(present: present, at: now, remindEvery: settings.breakReminder ? settings.breakMinutes : nil)
+        if remind {
+            Notifier.post(
+                title: "Đứng dậy vận động chút nhé",
+                body: "Bạn đã ngồi \(settings.breakMinutes) phút liền. Đi lại vài phút cho đỡ mỏi.")
+        }
+    }
+
     private func lock(reason: LockReason) {
         let now = Date()
         // Snapshot what each device looked like at the moment of locking (for the History tab).
@@ -276,8 +331,12 @@ final class AppModel: ObservableObject {
             guard let self else { return }
             self.log.notice("Locked (\(reason.rawValue, privacy: .public)) via \(method.rawValue, privacy: .public)")
             self.lockHistory.record(LockEvent(date: now, reason: reason, method: method.rawValue, readings: readings))
-            if self.settings.notifyOnLock && reason != .test {
+            let automatic = reason != .test && reason != .shortcut
+            if self.settings.notifyOnLock && automatic {
                 Notifier.post(title: "Tether đã khoá Mac", body: reason.title)
+            }
+            if automatic && method != .failed {
+                ShortcutRunner.run(self.settings.leaveShortcut)
             }
         } }
     }

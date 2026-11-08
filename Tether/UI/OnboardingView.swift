@@ -128,7 +128,7 @@ struct OnboardingView: View {
             if let result {
                 Text("Mac khoá khi sóng yếu hơn \(Int(result.far)) dBm trong \(Int(settings.lockDelay)) giây, và coi là bạn đã quay lại khi sóng mạnh hơn \(Int(result.near)) dBm.")
             } else {
-                Text("Tether dùng ngưỡng mặc định. Bạn có thể chỉnh trong Cài đặt › Khoảng cách.")
+                Text("Tether dùng ngưỡng mặc định. Bạn có thể chỉnh trong Cài đặt › Tổng quan.")
             }
             Text("Tether nằm trên thanh menu. Bấm vào icon để tạm dừng, khoá thử hoặc mở Cài đặt.")
                 .foregroundStyle(.secondary)

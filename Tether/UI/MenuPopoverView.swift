@@ -26,6 +26,9 @@ struct MenuPopoverView: View {
                 .padding(.horizontal, 4)
             }
 
+            DeskTimeLine(store: model.deskTime)
+                .padding(.horizontal, 4)
+
             Divider()
 
             ActionBar()
@@ -39,23 +42,24 @@ struct MenuPopoverView: View {
 
 // MARK: - Status card
 
-private struct StatusCard: View {
+struct StatusCard: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var settings: SettingsStore
 
     var body: some View {
         let status = model.status
+        let offSchedule = model.isOffSchedule
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: status.cardSymbol)
+            Image(systemName: offSchedule ? "moon.zzz.fill" : status.cardSymbol)
                 .font(.system(size: 22, weight: .semibold))
-                .foregroundStyle(status.color == .secondary ? Color.secondary : status.color)
+                .foregroundStyle(offSchedule || status.color == .secondary ? Color.secondary : status.color)
                 .frame(width: 30, height: 30)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 4) {
-                    Text(status.cardTitle).font(.headline)
+                    Text(model.statusTitle).font(.headline)
                     AccuracyInfo()
                 }
-                Text(subtitle(status))
+                Text(offSchedule ? (model.nextScheduledStartText ?? "Ngoài giờ trong lịch, Tether không khoá Mac.") : subtitle(status))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -71,13 +75,14 @@ private struct StatusCard: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(tint(status).opacity(0.14))
+                .fill((offSchedule ? Color.gray : tint(status)).opacity(0.14))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(tint(status).opacity(0.25))
+                .strokeBorder((offSchedule ? Color.gray : tint(status)).opacity(0.25))
         )
         .animation(.easeInOut(duration: 0.25), value: status)
+        .animation(.easeInOut(duration: 0.25), value: offSchedule)
     }
 
     private func tint(_ s: ProximityStatus) -> Color {
@@ -104,6 +109,21 @@ private struct StatusCard: View {
             return "Đang chờ thiết bị quay lại gần."
         case .bluetoothOff:
             return "Bật Bluetooth để Tether hoạt động."
+        }
+    }
+}
+
+// MARK: - Desk time
+
+private struct DeskTimeLine: View {
+    @ObservedObject var store: DeskTimeStore
+
+    var body: some View {
+        let today = store.today()
+        if today >= 60 {
+            Label("Hôm nay ở bàn \(DurationText.short(today))", systemImage: "chair")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 }
@@ -145,6 +165,7 @@ private struct DeviceLine: View {
 
 private struct ActionBar: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var newFeatures: NewFeatureStore
 
     var body: some View {
         HStack(spacing: 8) {
@@ -176,8 +197,13 @@ private struct ActionBar: View {
             IconButton(symbol: "lock", help: "Khoá thử ngay") {
                 model.testLock()
             }
-            IconButton(symbol: "gearshape", help: "Cài đặt (⌘,)") {
-                SettingsWindow.shared.show(tab: .devices)
+            IconButton(symbol: "gearshape", help: newFeatures.hasUnseen ? "Cài đặt (⌘,) · có tính năng mới" : "Cài đặt (⌘,)") {
+                SettingsWindow.shared.show(tab: newFeatures.hasUnseen ? .automation : .overview)
+            }
+            .overlay(alignment: .topTrailing) {
+                if newFeatures.hasUnseen {
+                    Circle().fill(Color.accentColor).frame(width: 6, height: 6).offset(x: 2, y: -2)
+                }
             }
             IconButton(symbol: "power", help: "Thoát Tether") {
                 NSApp.terminate(nil)

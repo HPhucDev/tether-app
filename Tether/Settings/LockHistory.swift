@@ -5,6 +5,7 @@ enum LockReason: String, Codable {
     case signalLost
     case bluetoothOff
     case test
+    case shortcut
 
     var title: String {
         switch self {
@@ -12,6 +13,7 @@ enum LockReason: String, Codable {
         case .signalLost: return "Mất tín hiệu"
         case .bluetoothOff: return "Bluetooth bị tắt"
         case .test: return "Khoá thử"
+        case .shortcut: return "Từ Phím tắt"
         }
     }
 
@@ -21,6 +23,7 @@ enum LockReason: String, Codable {
         case .signalLost: return "antenna.radiowaves.left.and.right.slash"
         case .bluetoothOff: return "exclamationmark.triangle"
         case .test: return "hand.tap"
+        case .shortcut: return "square.2.layers.3d"
         }
     }
 }

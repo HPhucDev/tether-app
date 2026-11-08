@@ -11,8 +11,9 @@ struct TetherApp: App {
             MenuPopoverView()
                 .environmentObject(model)
                 .environmentObject(model.settings)
+                .environmentObject(model.newFeatures)
         } label: {
-            Image(systemName: model.status.symbolName)
+            Image(systemName: model.menuBarSymbol)
         }
         .menuBarExtraStyle(.window)
         .commands {
@@ -30,6 +31,9 @@ struct TetherApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         MainActor.assumeIsolated {
+            #if DEBUG
+            if SnapshotRenderer.runIfRequested() { NSApp.terminate(nil); return }
+            #endif
             let model = AppModel.shared
             model.start()
             if !model.settings.hasCompletedOnboarding {
@@ -53,7 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 final class SettingsWindow: ManagedWindow {
     static let shared = SettingsWindow()
 
-    enum Tab: Int { case devices, distance, history, general, about }
+    enum Tab: Int { case overview, automation, stats, general, about }
     private var pendingTab: Tab?
 
     func show(tab: Tab) {
@@ -77,7 +81,9 @@ final class SettingsWindow: ManagedWindow {
             let host = NSHostingController(rootView: view
                 .environmentObject(model)
                 .environmentObject(model.settings)
-                .environmentObject(model.lockHistory))
+                .environmentObject(model.lockHistory)
+                .environmentObject(model.deskTime)
+                .environmentObject(model.newFeatures))
             host.sizingOptions = [.preferredContentSize]
             // The tab controller copies the selected child's title to the window; without one it shows "Untitled".
             host.title = label
@@ -86,18 +92,18 @@ final class SettingsWindow: ManagedWindow {
             item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
             tabs.addTabViewItem(item)
         }
-        add(DevicesTab().frame(width: 560, height: 580), "Thiết bị", "iphone")
-        add(DistanceTab().frame(width: 600, height: 760), "Khoảng cách", "dot.radiowaves.left.and.right")
-        add(HistoryTab().frame(width: 560, height: 520), "Lịch sử", "clock.arrow.circlepath")
-        add(GeneralTab().frame(width: 560, height: 560), "Chung", "gearshape")
-        add(AboutTab().frame(width: 600, height: 760), "Giới thiệu", "info.circle")
+        add(OverviewTab().frame(width: 560, height: 600), "Tổng quan", "shield.lefthalf.filled")
+        add(AutomationTab().frame(width: 560, height: 560), "Tự động", "wand.and.stars")
+        add(StatsTab().frame(width: 560, height: 630), "Thống kê", "chart.bar")
+        add(GeneralTab().frame(width: 560, height: 530), "Chung", "gearshape")
+        add(AboutTab().frame(width: 560, height: 530), "Giới thiệu", "info.circle")
         return tabs
     }
 
     override func configure(_ window: NSWindow) {
         window.styleMask.remove(.miniaturizable)
         window.toolbarStyle = .preference
-        window.title = "Thiết bị"
+        window.title = "Tổng quan"
     }
 }
 
@@ -130,7 +136,7 @@ final class OnboardingWindow: ManagedWindow {
 /// Opens Tether's Settings window from anywhere (popover, onboarding…).
 struct OpenSettingsButton: View {
     var title = "Cài đặt…"
-    var tab: SettingsWindow.Tab = .devices
+    var tab: SettingsWindow.Tab = .overview
 
     var body: some View {
         Button(title) { SettingsWindow.shared.show(tab: tab) }

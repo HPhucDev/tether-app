@@ -3,86 +3,7 @@ import Charts
 import SwiftUI
 import TetherCore
 
-// MARK: - Devices
-
-struct DevicesTab: View {
-    @EnvironmentObject private var model: AppModel
-    @EnvironmentObject private var settings: SettingsStore
-    @State private var pickingFor: DeviceKind = .iPhone
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            GroupBox {
-                VStack(spacing: 8) {
-                    ForEach(DeviceKind.allCases) { kind in
-                        if kind != DeviceKind.allCases.first { Divider() }
-                        TrackedDeviceRow(kind: kind)
-                    }
-                }
-                .padding(4)
-            } label: {
-                HStack(spacing: 4) {
-                    Text("Thiết bị đang theo dõi")
-                    AccuracyInfo()
-                }
-            }
-
-            if settings.hasMultipleDevices {
-                VStack(alignment: .leading, spacing: 4) {
-                    Picker("Khoá Mac khi", selection: $settings.lockPolicy) {
-                        ForEach(LockPolicy.allCases, id: \.self) { Text($0.title).tag($0) }
-                    }
-                    .pointingHandCursor()
-                    Text(settings.lockPolicy.explanation)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Picker("Chọn thiết bị cho", selection: $pickingFor) {
-                ForEach(DeviceKind.allCases) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .pointingHandCursor()
-
-            Text("Đưa \(pickingFor.title) sát Mac rồi bấm vào thiết bị có sóng mạnh nhất. Không cần cài app gì lên \(pickingFor.title).")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            DeviceListView(pickingFor: pickingFor)
-        }
-        .padding()
-        .onAppear { model.setVisible(.settingsDevices, true) }
-        .onDisappear { model.setVisible(.settingsDevices, false) }
-    }
-}
-
-struct TrackedDeviceRow: View {
-    @EnvironmentObject private var model: AppModel
-    @EnvironmentObject private var settings: SettingsStore
-    let kind: DeviceKind
-
-    var body: some View {
-        let isSet = settings.deviceID(kind) != nil
-        HStack {
-            Image(systemName: kind.symbol).font(.title2).frame(width: 28)
-            VStack(alignment: .leading) {
-                Text(settings.deviceName(kind) ?? "Chưa chọn \(kind.title)")
-                    .foregroundStyle(isSet ? .primary : .secondary)
-                if isSet {
-                    Text(model.connection(kind).title).font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            Spacer()
-            if isSet {
-                SignalBarsView(rssi: model.deviceRSSI[kind])
-                Button("Quên") { model.forget(kind) }
-                    .pointingHandCursor()
-            }
-        }
-    }
-}
+// MARK: - Device picking
 
 struct DeviceListView: View {
     @EnvironmentObject private var model: AppModel
@@ -164,9 +85,10 @@ extension LockPolicy {
     }
 }
 
-// MARK: - Distance
+// MARK: - Advanced distance (sheet from Overview)
 
-struct DistanceTab: View {
+/// Signal chart and fine-grained thresholds, for people who want to tune by hand.
+struct AdvancedDistanceView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var lockHistory: LockHistory
@@ -213,7 +135,7 @@ struct DistanceTab: View {
                     signalTimeout: settings.proximityConfiguration.signalTimeout,
                     far: farBinding,
                     near: nearBinding)
-                    .frame(height: 250)
+                    .frame(height: 190)
                     .padding(.vertical, 4)
                 Text("Kéo đường đỏ (mức khoá) hoặc đường xanh (mức quay lại) để chỉnh. Mỗi lần khoá có dấu 🔒, vùng cam là khoảng thời gian chờ trước khi khoá.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -238,23 +160,17 @@ struct DistanceTab: View {
                     title: "Tính là đã quay lại khi gần tới mức",
                     hint: "Nên gần hơn mức khoá một chút, để Mac không khoá rồi lại coi là quay lại liên tục khi sóng chập chờn.",
                     value: nearBinding)
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack {
-                        Text("Chờ trước khi khoá")
-                        Slider(value: $settings.lockDelay, in: 1...30, step: 1)
-                            .pointingHandCursor()
-                        Text("\(Int(settings.lockDelay)) giây").monospacedDigit().frame(width: 60, alignment: .trailing)
-                    }
-                    Text("Bạn phải ở xa liên tục chừng này giây thì Mac mới khoá.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Button("Lấy vị trí hiện tại làm mức khoá") { model.calibrateFarHere() }
+                HStack {
+                    Text("Chờ trước khi khoá")
+                    Slider(value: $settings.lockDelay, in: 1...30, step: 1)
                         .pointingHandCursor()
-                        .disabled(model.currentRSSI == nil)
-                    Text("Mang thiết bị tới chỗ muốn Mac khoá (ví dụ cửa phòng) rồi bấm.")
-                        .font(.caption).foregroundStyle(.secondary)
+                    Text("\(Int(settings.lockDelay)) giây").monospacedDigit().frame(width: 60, alignment: .trailing)
                 }
+                .help("Bạn phải ở xa liên tục chừng này giây thì Mac mới khoá.")
+                Button("Lấy vị trí hiện tại làm mức khoá") { model.calibrateFarHere() }
+                    .pointingHandCursor()
+                    .disabled(model.currentRSSI == nil)
+                    .help("Mang thiết bị tới chỗ muốn Mac khoá (ví dụ cửa phòng) rồi bấm.")
             }
         }
         .formStyle(.grouped)
@@ -279,6 +195,7 @@ struct ThresholdSlider: View {
         VStack(alignment: .leading, spacing: 2) {
             HStack {
                 Text(title)
+                InfoButton(title: title, text: hint)
                 Spacer()
                 Text(DistanceText.describe(value))
                     .monospacedDigit()
@@ -292,7 +209,6 @@ struct ThresholdSlider: View {
                 Text("Gần").font(.caption)
             }
             .pointingHandCursor()
-            Text(hint).font(.caption).foregroundStyle(.secondary)
         }
     }
 }
@@ -356,7 +272,7 @@ struct GeneralTab: View {
                 model.resetToDefaults()
                 launchAtLogin = false
                 // No device is tracked any more: go pick one.
-                SettingsWindow.shared.show(tab: .devices)
+                SettingsWindow.shared.show(tab: .overview)
             }
             Button("Huỷ", role: .cancel) {}
         } message: {

@@ -78,7 +78,7 @@ struct AccuracyInfo: View {
     Khoảng cách (số mét) chỉ là ước lượng, không chính xác.
     Tether đo độ mạnh sóng Bluetooth mà iPhone/Apple Watch tự phát ra. Sóng bị ảnh hưởng bởi tường, người, túi quần, ốp lưng…
     Khi iPhone khoá màn hình hoặc Watch nằm yên, chúng phát tín hiệu thưa hơn nên Tether có thể báo xa hoặc mất tín hiệu nhầm.
-    Hãy chỉnh mức khoá trong tab Khoảng cách cho hợp chỗ ngồi của bạn.
+    Hãy chọn lại khoảng cách khoá hoặc đo lại theo phòng của bạn trong tab Tổng quan.
     """
 
     @State private var isShown = false
@@ -132,5 +132,21 @@ extension ProximityStatus {
         case .searching: return "dot.radiowaves.left.and.right"
         case .away: return "lock.fill"
         }
+    }
+}
+
+extension AppModel {
+    /// Card title, aware of the schedule (Tether on, but resting outside its hours).
+    var statusTitle: String { isOffSchedule ? "Ngoài lịch hoạt động" : status.cardTitle }
+
+    var menuBarSymbol: String { isOffSchedule ? "moon.zzz" : status.symbolName }
+
+    /// When the schedule turns protection back on, e.g. "Bảo vệ lại lúc 08:00 thứ Hai".
+    var nextScheduledStartText: String? {
+        guard isOffSchedule, let next = settings.schedule.nextStart(after: Date()) else { return nil }
+        let time = next.formatted(date: .omitted, time: .shortened)
+        if Calendar.current.isDateInToday(next) { return "Bảo vệ lại lúc \(time) hôm nay." }
+        if Calendar.current.isDateInTomorrow(next) { return "Bảo vệ lại lúc \(time) ngày mai." }
+        return "Bảo vệ lại lúc \(time), \(next.formatted(.dateTime.weekday(.wide)))."
     }
 }

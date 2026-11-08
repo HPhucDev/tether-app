@@ -29,6 +29,17 @@ final class SettingsStore: ObservableObject {
     @Published var hasCompletedOnboarding: Bool { didSet { defaults.set(hasCompletedOnboarding, forKey: Keys.onboarded) } }
     @Published var dockIconMode: DockIconMode { didSet { defaults.set(dockIconMode.rawValue, forKey: Keys.dock) } }
 
+    // Automation
+    @Published var scheduleEnabled: Bool { didSet { defaults.set(scheduleEnabled, forKey: Keys.scheduleOn) } }
+    @Published var schedule: ActiveSchedule { didSet { defaults.set(try? JSONEncoder().encode(schedule), forKey: Keys.schedule) } }
+    @Published var wakeOnReturn: Bool { didSet { defaults.set(wakeOnReturn, forKey: Keys.wake) } }
+    @Published var leaveShortcut: String { didSet { defaults.set(leaveShortcut, forKey: Keys.leaveShortcut) } }
+    @Published var returnShortcut: String { didSet { defaults.set(returnShortcut, forKey: Keys.returnShortcut) } }
+
+    // Desk time
+    @Published var breakReminder: Bool { didSet { defaults.set(breakReminder, forKey: Keys.breakOn) } }
+    @Published var breakMinutes: Int { didSet { defaults.set(breakMinutes, forKey: Keys.breakMinutes) } }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         let d = ProximityConfiguration.default
@@ -41,6 +52,10 @@ final class SettingsStore: ObservableObject {
             Keys.btOff: BluetoothOffAction.notifyOnly.rawValue,
             Keys.notify: true,
             Keys.onboarded: false,
+            Keys.scheduleOn: false,
+            Keys.wake: false,
+            Keys.breakOn: false,
+            Keys.breakMinutes: 45,
         ])
         Self.migrateSingleDevice(defaults)
         isEnabled = defaults.bool(forKey: Keys.enabled)
@@ -58,6 +73,41 @@ final class SettingsStore: ObservableObject {
         notifyOnLock = defaults.bool(forKey: Keys.notify)
         hasCompletedOnboarding = defaults.bool(forKey: Keys.onboarded)
         dockIconMode = DockIconMode(rawValue: defaults.string(forKey: Keys.dock) ?? "") ?? .whileWindowOpen
+        scheduleEnabled = defaults.bool(forKey: Keys.scheduleOn)
+        schedule = defaults.data(forKey: Keys.schedule).flatMap { try? JSONDecoder().decode(ActiveSchedule.self, from: $0) } ?? .workHours
+        wakeOnReturn = defaults.bool(forKey: Keys.wake)
+        leaveShortcut = defaults.string(forKey: Keys.leaveShortcut) ?? ""
+        returnShortcut = defaults.string(forKey: Keys.returnShortcut) ?? ""
+        breakReminder = defaults.bool(forKey: Keys.breakOn)
+        breakMinutes = defaults.integer(forKey: Keys.breakMinutes)
+    }
+
+    /// Protection is on and, if a schedule is set, we're inside it.
+    func isWithinSchedule(at date: Date = Date()) -> Bool {
+        !scheduleEnabled || schedule.isActive(at: date)
+    }
+
+    /// Lock-distance presets: far threshold in dBm (≈ 2 m, ≈ 4 m, ≈ 8 m).
+    enum DistancePreset: Int, CaseIterable, Identifiable {
+        case near = -67, medium = -75, far = -82
+        var id: Int { rawValue }
+        var title: String {
+            switch self {
+            case .near: return "Gần"
+            case .medium: return "Vừa"
+            case .far: return "Xa"
+            }
+        }
+        var detail: String { DistanceEstimate.text(rssi: Double(rawValue)) }
+    }
+
+    var distancePreset: DistancePreset? {
+        DistancePreset(rawValue: Int(farThreshold.rounded()))
+    }
+
+    func apply(_ preset: DistancePreset) {
+        farThreshold = Double(preset.rawValue)
+        nearThreshold = farThreshold + 10
     }
 
     /// Forgets every device and preference. Onboarding stays marked as done:
@@ -79,6 +129,13 @@ final class SettingsStore: ObservableObject {
         bluetoothOffAction = .notifyOnly
         notifyOnLock = true
         dockIconMode = .whileWindowOpen
+        scheduleEnabled = false
+        schedule = .workHours
+        wakeOnReturn = false
+        leaveShortcut = ""
+        returnShortcut = ""
+        breakReminder = false
+        breakMinutes = 45
     }
 
     var proximityConfiguration: ProximityConfiguration {
@@ -163,10 +220,18 @@ final class SettingsStore: ObservableObject {
         static let notify = "notifyOnLock"
         static let onboarded = "hasCompletedOnboarding"
         static let dock = "dockIconMode"
+        static let scheduleOn = "scheduleEnabled"
+        static let schedule = "schedule"
+        static let wake = "wakeOnReturn"
+        static let leaveShortcut = "leaveShortcut"
+        static let returnShortcut = "returnShortcut"
+        static let breakOn = "breakReminder"
+        static let breakMinutes = "breakMinutes"
 
         static let all = [
             enabled, phoneID, phoneName, watchID, watchName, otherID, otherName,
             policy, far, near, delay, btOff, notify, onboarded, dock,
+            scheduleOn, schedule, wake, leaveShortcut, returnShortcut, breakOn, breakMinutes,
         ]
     }
 }

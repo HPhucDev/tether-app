@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/phiên_bản-0.1.1-2b64f5" alt="Phiên bản 0.1.1">
+  <img src="https://img.shields.io/badge/phiên_bản-0.2.0-2b64f5" alt="Phiên bản 0.2.0">
   <img src="https://img.shields.io/badge/macOS-13%2B-111211?logo=apple&logoColor=white" alt="macOS 13+">
   <img src="https://img.shields.io/badge/Swift-5-F05138?logo=swift&logoColor=white" alt="Swift">
   <img src="https://img.shields.io/badge/SwiftUI-menu_bar-0A84FF" alt="SwiftUI">
@@ -59,10 +59,21 @@ Tải file `.dmg` mới nhất trên [website](https://tether.hoangphuc.io.vn/#i
 
 ### Thiết lập trong một phút
 
-- **Hướng dẫn lần đầu:** chọn thiết bị, đo sóng ở bàn làm việc và ở chỗ muốn khoá (ví dụ cửa phòng), Tether tự tính ngưỡng cho căn phòng của bạn.
-- **Biểu đồ sóng 5 phút:** kéo trực tiếp đường mức khoá và mức quay lại, thấy ngay mỗi lần khoá nằm ở đâu.
+- **Hướng dẫn lần đầu:** chọn thiết bị, đo sóng ở bàn làm việc và ở chỗ muốn khoá (ví dụ cửa phòng), Tether tự tính khoảng cách cho căn phòng của bạn.
+- **Khoảng cách Gần · Vừa · Xa** (≈ 2 · 4 · 8 m) và thời gian chờ 3 · 5 · 8 · 15 giây. Muốn chỉnh tay thì có biểu đồ sóng 5 phút trong mục *Nâng cao*.
 - **Nhận lại thiết bị** theo tên khi mã Bluetooth của nó đổi.
 - **Đặt lại và xem lại hướng dẫn:** đưa mọi cài đặt về mặc định, hoặc chạy lại phần thiết lập bất cứ lúc nào.
+
+### Tự động
+
+- **Lịch hoạt động:** chỉ bảo vệ trong những ngày, giờ bạn chọn (kể cả khung giờ qua đêm). Ngoài lịch, icon trên thanh menu đổi thành 🌙.
+- **Sáng màn hình khi quay lại:** Mac sáng sẵn để bạn mở khoá ngay bằng Touch ID hoặc Apple Watch. Tether vẫn không tự mở khoá.
+- **Phím tắt:** chọn phím tắt chạy khi rời đi và khi quay lại (dừng nhạc, tắt tiếng, đổi trạng thái Slack…). App Phím tắt cũng có sẵn thao tác của Tether: Tạm dừng, Tiếp tục, Bật/tắt, Khoá Mac ngay, Trạng thái.
+
+### Thời gian ngồi bàn
+
+- **Thống kê** thời gian bạn ngồi ở bàn hôm nay và 7 ngày qua, chỉ lưu trên Mac.
+- **Nhắc nghỉ:** thông báo đứng dậy sau 30 · 45 · 60 · 90 phút hoặc số phút bạn tự nhập.
 
 ### Gọn trên thanh menu
 
@@ -116,8 +127,8 @@ log stream --predicate 'subsystem == "com.simple.tether"' --level debug
 
 | Thư mục | Nội dung |
 |---|---|
-| `TetherCore/` | Swift package logic thuần, có unit test: `ProximityEngine` (nhiều thiết bị, hysteresis, độ trễ), `RSSIHistory`, `Calibration`, `DistanceEstimate`. |
-| `Tether/` | App thanh menu (`com.simple.tether`): `BluetoothService`, `ScreenLocker`, `SystemObserver`, `SettingsStore`, `LockHistory` và giao diện SwiftUI. |
+| `TetherCore/` | Swift package logic thuần, có unit test: `ProximityEngine` (nhiều thiết bị, hysteresis, độ trễ), `ActiveSchedule` (lịch hoạt động), `DeskTime` (thời gian ngồi bàn, nhắc nghỉ), `RSSIHistory`, `Calibration`, `DistanceEstimate`. |
+| `Tether/` | App thanh menu (`com.simple.tether`): `BluetoothService`, `ScreenLocker`, `SystemObserver`, `SettingsStore`, `LockHistory`, `DeskTimeStore`, phím tắt và đánh thức màn hình (`Automation`), thao tác cho app Phím tắt (`Intents/`) và giao diện SwiftUI. |
 | `scripts/icon/` | Bộ tạo icon Liquid Glass dùng chung cho các app (`make-icon.py`), xem [`scripts/icon/README.md`](scripts/icon/README.md). |
 | `scripts/dmg-art/` | Nền cửa sổ DMG (800×580) vẽ bằng HTML. Sửa `background.html` rồi chạy `render.sh` (cần Google Chrome) để xuất ảnh. |
 | `scripts/make-dmg.sh` | Build Release và đóng gói DMG kéo-thả, có icon ổ đĩa và bố cục cửa sổ. |
