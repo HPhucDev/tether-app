@@ -109,10 +109,11 @@ private struct PrivacyCard: View {
     }
 }
 
-/// "© 2026 S1mple · LinkedIn · GitHub · Donate · Feedback"
+/// "© 2026 S1mple · Website · LinkedIn · Substack · Feedback"
 private struct AboutFooter: View {
     /// Links shown in the footer. Set a URL to nil to hide that link.
     private static let links: [(title: String, url: URL?)] = [
+        ("Website", URL(string: "https://hoangphuc.io.vn/")),
         ("LinkedIn", URL(string: "https://www.linkedin.com/in/hoang-phuc-developer")),
         ("Substack", URL(string: "https://hphucdev.substack.com/")),
         ("GitHub", nil),   // TODO: GitHub profile URL
