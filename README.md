@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/phiên_bản-0.2.0-2b64f5" alt="Phiên bản 0.2.0">
+  <img src="https://img.shields.io/badge/phiên_bản-0.2.1-2b64f5" alt="Phiên bản 0.2.1">
   <img src="https://img.shields.io/badge/macOS-13%2B-111211?logo=apple&logoColor=white" alt="macOS 13+">
   <img src="https://img.shields.io/badge/Swift-5-F05138?logo=swift&logoColor=white" alt="Swift">
   <img src="https://img.shields.io/badge/SwiftUI-menu_bar-0A84FF" alt="SwiftUI">
@@ -60,7 +60,9 @@ Tải file `.dmg` mới nhất trên [website](https://tether.hoangphuc.io.vn/#i
 ### Thiết lập trong một phút
 
 - **Hướng dẫn lần đầu:** chọn thiết bị, đo sóng ở bàn làm việc và ở chỗ muốn khoá (ví dụ cửa phòng), Tether tự tính khoảng cách cho căn phòng của bạn.
-- **Khoảng cách Gần · Vừa · Xa** (≈ 2 · 4 · 8 m) và thời gian chờ 3 · 5 · 8 · 15 giây. Muốn chỉnh tay thì có biểu đồ sóng 5 phút trong mục *Nâng cao*.
+- **Khoảng cách theo mét** (1 · 2 · 3 · 4 · 6 · 8 m) và thời gian chờ 3 · 5 · 8 · 15 giây. Muốn chỉnh tay thì có biểu đồ sóng 5 phút trong mục *Nâng cao*.
+- **Độ nhạy 4 mức** (Thấp · Vừa · Cao · Rất cao): càng cao càng nhận ra bạn rời đi nhanh, nhưng dễ khoá nhầm hơn. Rất cao đo sóng mỗi 1 giây.
+- **Báo khi bỏ quên thiết bị:** mở khoá Mac mà iPhone hay Watch vẫn ở xa, Tether báo cho bạn và tạm dừng theo dõi tới khi thiết bị quay về.
 - **Nhận lại thiết bị** theo tên khi mã Bluetooth của nó đổi.
 - **Đặt lại và xem lại hướng dẫn:** đưa mọi cài đặt về mặc định, hoặc chạy lại phần thiết lập bất cứ lúc nào.
 
@@ -100,7 +102,7 @@ iPhone / Watch / AirPods ──(gói Bluetooth tự phát)──▶ BluetoothSer
 
 - **ProximityEngine** (`TetherCore`): làm mượt EMA 0,7/0,3 cho từng thiết bị, hysteresis −75 / −65 dBm, mất tín hiệu quá lâu tính là xa, xa liên tục *N* giây mới khoá.
 - **ScreenLocker:** khoá tức thì. Nếu sau 1 giây màn hình chưa khoá thì bật trình bảo vệ màn hình làm phương án dự phòng (cần bật “Yêu cầu mật khẩu ngay”).
-- **Quét tiết kiệm:** không lấy gói trùng và khởi động lại phiên quét mỗi 1,5 giây, nên mỗi thiết bị chỉ báo về khoảng một lần mỗi chu kỳ.
+- **Quét tiết kiệm:** không lấy gói trùng và khởi động lại phiên quét mỗi 1,5 giây (1 giây ở độ nhạy Rất cao), nên mỗi thiết bị chỉ báo về khoảng một lần mỗi chu kỳ.
 - **Khoảng cách** hiển thị chỉ là ước lượng (−59 dBm ≈ 1 m, hệ số suy hao 2,5). Cơ thể, tường và túi quần đều làm sóng yếu đi.
 
 ## Build từ mã nguồn

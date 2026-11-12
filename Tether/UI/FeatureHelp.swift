@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Features introduced recently. Each shows a "Mới" tag until the user first uses it.
 enum NewFeature: String, CaseIterable {
-    case distancePresets, schedule, wakeOnReturn, shortcuts, deskTime, breakReminder
+    case distancePresets, sensitivity, schedule, wakeOnReturn, shortcuts, deskTime, breakReminder
 }
 
 /// Remembers which new features the user has already touched. Stored only on this Mac.
@@ -130,10 +130,16 @@ struct FeatureLabel: View {
 
 enum FeatureInfo {
     static let distance = """
-    Gần (≈ 2 m): khoá ngay khi bạn rời ghế.
-    Vừa (≈ 4 m): hợp phòng làm việc thông thường.
-    Xa (≈ 8 m): ít khoá nhầm hơn, hợp phòng rộng.
+    Mac khoá khi thiết bị ra xa hơn số mét bạn chọn.
+    1–2 m: khoá ngay khi bạn rời ghế. 3–4 m: hợp phòng làm việc thông thường. 6–8 m: ít khoá nhầm hơn, hợp phòng rộng.
     Số mét chỉ là ước lượng vì cơ thể, tường và túi quần làm sóng yếu đi. Bấm “Đo theo phòng của bạn” để Tether tự tính theo chỗ ngồi thật.
+    """
+    static let sensitivity = """
+    Độ nhạy càng cao, Tether càng phản ứng nhanh khi bạn rời đi, nhưng cũng dễ khoá nhầm hơn khi sóng chập chờn (iPhone trong túi, sau lưng ghế…).
+    Thấp: ổn định nhất, coi là mất tín hiệu sau 14 giây.
+    Vừa: mặc định, 10 giây.
+    Cao: 7 giây.
+    Rất cao: 5 giây, đo sóng mỗi 1 giây thay vì 1,5 giây, phản ứng gần như tức thì.
     """
     static let delay = "Tether chỉ khoá khi bạn ở xa liên tục đủ số giây này. Đứng dậy lấy đồ rồi quay lại ngay thì Mac không khoá. Chọn ngắn để an toàn hơn, chọn dài nếu Mac hay khoá nhầm."
     static let policy = "“Tất cả đều đi xa”: còn một thiết bị ở gần là coi như bạn vẫn ngồi đó, hợp khi để iPhone trên bàn và đeo Watch. “Một thiết bị bất kỳ đi xa”: chặt hơn, chỉ cần một thiết bị rời đi là khoá."

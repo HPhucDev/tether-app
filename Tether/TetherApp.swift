@@ -92,7 +92,7 @@ final class SettingsWindow: ManagedWindow {
             item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
             tabs.addTabViewItem(item)
         }
-        add(OverviewTab().frame(width: 560, height: 600), "Tổng quan", "shield.lefthalf.filled")
+        add(OverviewTab().frame(width: 560, height: 640), "Tổng quan", "shield.lefthalf.filled")
         add(AutomationTab().frame(width: 560, height: 560), "Tự động", "wand.and.stars")
         add(StatsTab().frame(width: 560, height: 630), "Thống kê", "chart.bar")
         add(GeneralTab().frame(width: 560, height: 530), "Chung", "gearshape")

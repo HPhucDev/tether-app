@@ -21,7 +21,7 @@ enum SnapshotRenderer {
                 .environmentObject(model.newFeatures)
         }
         let views: [(String, AnyView, CGSize)] = [
-            ("overview", AnyView(wrap(OverviewTab())), CGSize(width: 560, height: 600)),
+            ("overview", AnyView(wrap(OverviewTab())), CGSize(width: 560, height: 640)),
             ("automation", AnyView(wrap(AutomationTab())), CGSize(width: 560, height: 560)),
             ("stats", AnyView(wrap(StatsTab())), CGSize(width: 560, height: 630)),
             ("general", AnyView(wrap(GeneralTab())), CGSize(width: 560, height: 530)),

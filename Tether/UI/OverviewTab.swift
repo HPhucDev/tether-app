@@ -64,9 +64,11 @@ struct OverviewTab: View {
                     }
                     .pickerStyle(.segmented)
                     .pointingHandCursor()
-                    Text("Mac khoá khi bạn đi xa hơn khoảng \(DistanceEstimate.text(rssi: settings.farThreshold).replacingOccurrences(of: "≈ ", with: "")).")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if settings.distancePreset == nil {
+                        Text("Đang dùng khoảng cách đo theo phòng của bạn: \(DistanceEstimate.text(rssi: settings.farThreshold)).")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 VStack(alignment: .leading, spacing: 6) {
                     Picker(selection: delayBinding) {
@@ -80,6 +82,13 @@ struct OverviewTab: View {
                     .pickerStyle(.segmented)
                     .pointingHandCursor()
                 }
+                Picker(selection: $settings.sensitivity) {
+                    ForEach(SettingsStore.Sensitivity.allCases) { Text($0.title).tag($0) }
+                } label: {
+                    FeatureLabel("Độ nhạy", info: FeatureInfo.sensitivity, new: .sensitivity)
+                }
+                .pickerStyle(.segmented)
+                .pointingHandCursor()
                 HStack {
                     Button("Đo theo phòng của bạn…") { OnboardingWindow.shared.show() }
                         .pointingHandCursor()
@@ -95,6 +104,7 @@ struct OverviewTab: View {
         .formStyle(.grouped)
         .onChange(of: settings.farThreshold) { _ in newFeatures.markSeen(.distancePresets) }
         .onChange(of: settings.lockDelay) { _ in newFeatures.markSeen(.distancePresets) }
+        .onChange(of: settings.sensitivity) { _ in newFeatures.markSeen(.sensitivity) }
         .sheet(item: $picking) { kind in
             DevicePickerSheet(initialKind: kind)
                 .environmentObject(model)

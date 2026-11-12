@@ -137,9 +137,59 @@ extension ProximityStatus {
 
 extension AppModel {
     /// Card title, aware of the schedule (Tether on, but resting outside its hours).
-    var statusTitle: String { isOffSchedule ? "Ngoài lịch hoạt động" : status.cardTitle }
+    var statusTitle: String {
+        if isOffSchedule { return "Ngoài lịch hoạt động" }
+        if isDeviceForgotten { return "Tạm dừng theo dõi" }
+        return status.cardTitle
+    }
 
-    var menuBarSymbol: String { isOffSchedule ? "moon.zzz" : status.symbolName }
+    var menuBarSymbol: String {
+        if isOffSchedule { return "moon.zzz" }
+        if isDeviceForgotten { return "pause.circle" }
+        return status.symbolName
+    }
+
+    /// What the current state means, shown from the ⓘ next to the status title.
+    var statusExplanation: String {
+        let distance = DistanceEstimate.text(rssi: settings.farThreshold)
+        let delay = Int(settings.lockDelay)
+        let estimate = "Khoảng cách chỉ là ước lượng từ sóng Bluetooth."
+        if isOffSchedule {
+            return "Đang ngoài lịch hoạt động bạn đặt trong Cài đặt › Tự động. Tether nghỉ và không khoá Mac cho tới khi vào lại khung giờ trong lịch."
+        }
+        if isDeviceForgotten {
+            return "Bạn đã mở khoá Mac nhưng thiết bị vẫn ở xa. Tether tạm dừng theo dõi để không khoá Mac liên tục, và tự theo dõi lại ngay khi thiết bị quay về gần. Trong lúc này Mac không được tự khoá."
+        }
+        switch status {
+        case .near:
+            return "Thiết bị của bạn đang ở gần, Tether đang bảo vệ Mac. Khi thiết bị ra xa hơn \(distance) liên tục \(delay) giây, Mac sẽ tự khoá. \(estimate)"
+        case .leaving:
+            return "Sóng của thiết bị đã yếu hơn mức khoá, có vẻ bạn đang rời đi. Hết đếm ngược mà vẫn ở xa thì Mac khoá. Quay lại gần là huỷ ngay. \(estimate)"
+        case .signalLost:
+            return "Tether không còn nghe thấy thiết bị: có thể bạn đã mang nó đi xa, hoặc nó vừa tắt Bluetooth. Hết đếm ngược mà vẫn không nghe thấy thì Mac khoá."
+        case .paused:
+            return "Bạn đã tạm dừng Tether. Nó vẫn nghe thiết bị nhưng không khoá Mac cho tới giờ đã chọn. Bấm “Tiếp tục” để bảo vệ lại ngay."
+        case .disabled:
+            return "Tether đang tắt nên không khoá Mac. Bật công tắc bên phải để bảo vệ lại."
+        case .searching:
+            return settings.hasAnyDevice
+                ? "Tether chưa nghe thấy thiết bị ở gần nên chưa bắt đầu bảo vệ. Việc này tránh khoá Mac ngay khi vừa mở máy. Mang thiết bị lại gần Mac là xong."
+                : "Chưa có thiết bị nào để theo dõi. Chọn iPhone, Apple Watch hoặc AirPods của bạn trong Cài đặt › Tổng quan."
+        case .away:
+            return "Tether đã khoá Mac vì bạn đi xa. Nó chờ thiết bị quay về gần rồi mới bảo vệ tiếp. Tether không bao giờ tự mở khoá: bạn vẫn mở bằng mật khẩu, Touch ID hoặc Apple Watch."
+        case .bluetoothOff:
+            return "Bluetooth của Mac đang tắt nên Tether không nghe được thiết bị và không thể tự khoá. Bật Bluetooth trong Trung tâm điều khiển để bảo vệ lại."
+        }
+    }
+
+    /// The Mac is unlocked but the tracked devices are away, so it's unprotected.
+    /// "Đã khoá" would be wrong here: the screen isn't locked any more.
+    var isDeviceForgotten: Bool {
+        guard !isScreenLocked, !isOffSchedule, settings.isEnabled else { return false }
+        if !forgottenKinds.isEmpty { return true }
+        if case .away = status { return true }
+        return false
+    }
 
     /// When the schedule turns protection back on, e.g. "Bảo vệ lại lúc 08:00 thứ Hai".
     var nextScheduledStartText: String? {

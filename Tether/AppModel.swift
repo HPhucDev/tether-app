@@ -18,6 +18,10 @@ final class AppModel: ObservableObject {
 
     /// Tether is switched on but the schedule says "not now".
     @Published private(set) var isOffSchedule = false
+    @Published private(set) var isScreenLocked = SystemObserver.isScreenLockedNow
+    /// Devices still away after you unlocked the Mac ("did you forget your iPhone?"). Empty otherwise.
+    @Published private(set) var forgottenKinds: [DeviceKind] = []
+    private var forgottenCheck: DispatchWorkItem?
 
     @Published private(set) var status: ProximityStatus = .searching
     @Published private(set) var power: BluetoothPower = .unknown
@@ -67,6 +71,9 @@ final class AppModel: ObservableObject {
         // Nothing to decide while the screen is locked or the Mac sleeps, so Bluetooth scanning stops entirely.
         system.onScreenLocked = { [weak self] in
             guard let self else { return }
+            self.isScreenLocked = true
+            self.forgottenCheck?.cancel()
+            self.forgottenKinds = []
             self.engine.screenDidLock()
             if self.engine.isWaitingForReturn && self.wantsReturnEvent {
                 // Keep listening so we notice you coming back (wake the display / run a shortcut).
@@ -78,10 +85,12 @@ final class AppModel: ObservableObject {
         }
         system.onScreenUnlocked = { [weak self] in
             guard let self else { return }
+            self.isScreenLocked = false
             self.engine.screenDidUnlock(at: Date())
             self.bluetooth.setSuspended(false)
             self.log.info("Screen unlocked: scanning resumed")
             self.refreshStatus()
+            self.scheduleForgottenCheck()
         }
         system.onWillSleep = { [weak self] in
             guard let self else { return }
@@ -104,7 +113,8 @@ final class AppModel: ObservableObject {
             bluetooth.setSuspended(true)
         }
 
-        if settings.notifyOnLock || settings.breakReminder { Notifier.requestAuthorization() }
+        // Asked once by macOS: lock, forgotten-device and break notifications all need it.
+        Notifier.requestAuthorization()
 
         let t = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
@@ -230,6 +240,7 @@ final class AppModel: ObservableObject {
         let offSchedule = settings.isEnabled && !inSchedule
         if offSchedule != isOffSchedule { isOffSchedule = offSchedule }
         engine.policy = settings.lockPolicy
+        if started { bluetooth.setSampleWindow(settings.sensitivity.sampleWindow) }
         if WindowFocus.dockMode != settings.dockIconMode { WindowFocus.dockMode = settings.dockIconMode }
     }
 
@@ -271,6 +282,10 @@ final class AppModel: ObservableObject {
             lock(reason: lost ? .signalLost : .walkedAway)
         }
         if wasWaitingForReturn && !engine.isWaitingForReturn { userDidReturn() }
+        if !forgottenKinds.isEmpty && !engine.isAway(at: now) {
+            log.notice("Forgotten device is back")
+            forgottenKinds = []
+        }
         trackDeskTime(at: now)
         refreshStatus(at: now)
         if wantsLiveRSSI || wantsChart { refreshLiveData(at: now) }
@@ -294,6 +309,39 @@ final class AppModel: ObservableObject {
             for (k, h) in histories where settings.deviceID(k) != nil { samples[k] = h.samples(asOf: now) }
             historySamples = samples
         }
+    }
+
+    /// After an unlock, give scanning time to hear nearby devices (longer than the "signal lost"
+    /// timeout), then warn if they're still away: the Mac is unprotected until they come back.
+    private func scheduleForgottenCheck() {
+        forgottenCheck?.cancel()
+        let delay = settings.proximityConfiguration.signalTimeout + 2
+        let item = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated { self?.checkForgottenDevices() }
+        }
+        forgottenCheck = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+    }
+
+    private func checkForgottenDevices(at now: Date = Date()) {
+        guard !isScreenLocked, settings.isEnabled, settings.isWithinSchedule(at: now),
+              settings.hasAnyDevice, power == .poweredOn, engine.isAway(at: now) else { return }
+        let timeout = engine.configuration.signalTimeout
+        let away = settings.trackedKinds.filter { kind in
+            !(engine.devices[kind.rawValue]?.isPresent(at: now, timeout: timeout) ?? false)
+        }
+        forgottenKinds = away.isEmpty ? settings.trackedKinds : away
+        log.notice("Unlocked while devices are away: \(self.forgottenKinds.map(\.rawValue), privacy: .public)")
+        Notifier.post(
+            title: "Bạn có để quên \(forgottenNames) không?",
+            body: "Mac đã mở khoá nhưng \(forgottenNames) vẫn ở xa, nên Tether tạm dừng theo dõi. Tether tự theo dõi lại khi thiết bị quay về gần.")
+    }
+
+    /// "iPhone của Hoàng và Apple Watch của Hoàng"
+    var forgottenNames: String {
+        let kinds = forgottenKinds.isEmpty ? settings.trackedKinds : forgottenKinds
+        let names = kinds.map { settings.deviceName($0) ?? $0.title }
+        return ListFormatter.localizedString(byJoining: names)
     }
 
     /// A device came back near after Tether locked the Mac.

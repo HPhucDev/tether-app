@@ -24,6 +24,9 @@ final class SettingsStore: ObservableObject {
     @Published var farThreshold: Double { didSet { defaults.set(farThreshold, forKey: Keys.far) } }
     @Published var nearThreshold: Double { didSet { defaults.set(nearThreshold, forKey: Keys.near) } }
     @Published var lockDelay: Double { didSet { defaults.set(lockDelay, forKey: Keys.delay) } }
+    /// How quickly Tether reacts to you leaving. Higher = less smoothing and a shorter
+    /// "signal lost" timeout: locks sooner, but more false locks.
+    @Published var sensitivity: Sensitivity { didSet { defaults.set(sensitivity.rawValue, forKey: Keys.sensitivity) } }
     @Published var bluetoothOffAction: BluetoothOffAction { didSet { defaults.set(bluetoothOffAction.rawValue, forKey: Keys.btOff) } }
     @Published var notifyOnLock: Bool { didSet { defaults.set(notifyOnLock, forKey: Keys.notify) } }
     @Published var hasCompletedOnboarding: Bool { didSet { defaults.set(hasCompletedOnboarding, forKey: Keys.onboarded) } }
@@ -49,6 +52,7 @@ final class SettingsStore: ObservableObject {
             Keys.far: d.farThreshold,
             Keys.near: d.nearThreshold,
             Keys.delay: d.lockDelay,
+            Keys.sensitivity: Sensitivity.normal.rawValue,
             Keys.btOff: BluetoothOffAction.notifyOnly.rawValue,
             Keys.notify: true,
             Keys.onboarded: false,
@@ -69,6 +73,12 @@ final class SettingsStore: ObservableObject {
         farThreshold = defaults.double(forKey: Keys.far)
         nearThreshold = defaults.double(forKey: Keys.near)
         lockDelay = defaults.double(forKey: Keys.delay)
+        // 0.2.x beta stored an on/off "highSensitivity"; on maps to .high.
+        if defaults.object(forKey: Keys.sensitivity) == nil, defaults.bool(forKey: "highSensitivity") {
+            defaults.set(Sensitivity.high.rawValue, forKey: Keys.sensitivity)
+        }
+        defaults.removeObject(forKey: "highSensitivity")
+        sensitivity = Sensitivity(rawValue: defaults.integer(forKey: Keys.sensitivity)) ?? .normal
         bluetoothOffAction = BluetoothOffAction(rawValue: defaults.string(forKey: Keys.btOff) ?? "") ?? .notifyOnly
         notifyOnLock = defaults.bool(forKey: Keys.notify)
         hasCompletedOnboarding = defaults.bool(forKey: Keys.onboarded)
@@ -87,27 +97,65 @@ final class SettingsStore: ObservableObject {
         !scheduleEnabled || schedule.isActive(at: date)
     }
 
-    /// Lock-distance presets: far threshold in dBm (≈ 2 m, ≈ 4 m, ≈ 8 m).
-    enum DistancePreset: Int, CaseIterable, Identifiable {
-        case near = -67, medium = -75, far = -82
+    enum Sensitivity: Int, CaseIterable, Identifiable {
+        case low = 0, normal = 1, high = 2, highest = 3
         var id: Int { rawValue }
         var title: String {
             switch self {
-            case .near: return "Gần"
-            case .medium: return "Vừa"
-            case .far: return "Xa"
+            case .low: return "Thấp"
+            case .normal: return "Vừa"
+            case .high: return "Cao"
+            case .highest: return "Rất cao"
             }
         }
-        var detail: String { DistanceEstimate.text(rssi: Double(rawValue)) }
+        /// EMA weight of the newest RSSI sample (higher = reacts faster, noisier).
+        var smoothingFactor: Double {
+            switch self {
+            case .low: return 0.2
+            case .normal: return 0.3
+            case .high: return 0.5
+            case .highest: return 0.7
+            }
+        }
+        /// Seconds per sampling window. "Rất cao" samples every second to notice you leaving sooner.
+        var sampleWindow: TimeInterval { self == .highest ? 1.0 : 1.5 }
+        /// Seconds without any packet before a device counts as gone.
+        var signalTimeout: TimeInterval {
+            switch self {
+            case .low: return 14
+            case .normal: return 10
+            case .high: return 7
+            case .highest: return 5
+            }
+        }
+    }
+
+    /// Lock-distance presets in metres. Each maps to a "far" threshold with TetherCore's
+    /// estimate (−59 dBm ≈ 1 m, path-loss 2.5); 4 m is the default −75 dBm.
+    enum DistancePreset: Int, CaseIterable, Identifiable {
+        case m1 = 1, m2 = 2, m3 = 3, m4 = 4, m6 = 6, m8 = 8
+        var id: Int { rawValue }
+        var title: String { "\(rawValue) m" }
+        var farThreshold: Double {
+            switch self {
+            case .m1: return -59
+            case .m2: return -67
+            case .m3: return -71
+            case .m4: return -75
+            case .m6: return -79
+            case .m8: return -82
+            }
+        }
     }
 
     var distancePreset: DistancePreset? {
-        DistancePreset(rawValue: Int(farThreshold.rounded()))
+        DistancePreset.allCases.first { $0.farThreshold == farThreshold.rounded() }
     }
 
     func apply(_ preset: DistancePreset) {
-        farThreshold = Double(preset.rawValue)
-        nearThreshold = farThreshold + 10
+        farThreshold = preset.farThreshold
+        // "Back near" must be clearly stronger than "far", but still reachable right next to the Mac.
+        nearThreshold = min(farThreshold + 10, -45)
     }
 
     /// Forgets every device and preference. Onboarding stays marked as done:
@@ -126,6 +174,7 @@ final class SettingsStore: ObservableObject {
         farThreshold = d.farThreshold
         nearThreshold = d.nearThreshold
         lockDelay = d.lockDelay
+        sensitivity = .normal
         bluetoothOffAction = .notifyOnly
         notifyOnLock = true
         dockIconMode = .whileWindowOpen
@@ -144,7 +193,8 @@ final class SettingsStore: ObservableObject {
         c.nearThreshold = nearThreshold
         c.lockDelay = lockDelay
         // Passive listening: a locked iPhone / idle Watch advertises less often, so allow longer gaps.
-        c.signalTimeout = 10
+        c.signalTimeout = sensitivity.signalTimeout
+        c.smoothingFactor = sensitivity.smoothingFactor
         return c
     }
 
@@ -216,6 +266,7 @@ final class SettingsStore: ObservableObject {
         static let far = "farThreshold"
         static let near = "nearThreshold"
         static let delay = "lockDelay"
+        static let sensitivity = "sensitivity"
         static let btOff = "bluetoothOffAction"
         static let notify = "notifyOnLock"
         static let onboarded = "hasCompletedOnboarding"
@@ -230,7 +281,7 @@ final class SettingsStore: ObservableObject {
 
         static let all = [
             enabled, phoneID, phoneName, watchID, watchName, otherID, otherName,
-            policy, far, near, delay, btOff, notify, onboarded, dock,
+            policy, far, near, delay, sensitivity, btOff, notify, onboarded, dock,
             scheduleOn, schedule, wake, leaveShortcut, returnShortcut, breakOn, breakMinutes,
         ]
     }

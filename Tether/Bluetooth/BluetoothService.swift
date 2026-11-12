@@ -105,6 +105,8 @@ final class BluetoothService: NSObject {
     private var pairedNames: Set<String> = []
     private var lastDeliveredDevices: [DiscoveredDevice] = []
     private var tickTimer: DispatchSourceTimer?
+    /// Length of one sampling window: one averaged RSSI per device is delivered per window.
+    private var window: TimeInterval = 1.5
 
     override init() {
         super.init()
@@ -115,6 +117,18 @@ final class BluetoothService: NSObject {
     }
 
     // MARK: Public API (thread-safe)
+
+    /// Shorter windows notice you leaving sooner, at the cost of a little more CPU/battery and
+    /// noisier averages (fewer packets per window). 1–3 s is sensible.
+    func setSampleWindow(_ seconds: TimeInterval) {
+        queue.async {
+            let s = min(max(seconds, 0.5), 5)
+            guard s != self.window else { return }
+            self.window = s
+            self.scheduleTicks()
+            self.log.info("Sample window: \(s)s")
+        }
+    }
 
     func setTarget(_ target: DeviceTarget?, for kind: DeviceKind) {
         queue.async {
@@ -180,7 +194,7 @@ final class BluetoothService: NSObject {
     }
 
     /// Scans WITHOUT duplicates and restarts every tick. The Bluetooth controller then filters repeats in
-    /// hardware and reports each nearby device about once per 1.5 s window, instead of waking Tether
+    /// hardware and reports each nearby device about once per window (1–1.5 s), instead of waking Tether
     /// hundreds of times per second (AllowDuplicates). One fresh RSSI per device per window is all we need.
     private func startScanWindow() {
         central.stopScan()
@@ -203,13 +217,19 @@ final class BluetoothService: NSObject {
 
     private func startTicking() {
         let t = DispatchSource.makeTimerSource(queue: queue)
-        t.schedule(deadline: .now() + 1.5, repeating: 1.5, leeway: .milliseconds(500))
         t.setEventHandler { [weak self] in self?.tick() }
-        t.resume()
         tickTimer = t
+        scheduleTicks()
+        t.resume()
     }
 
-    /// Every 1.5 s: deliver one averaged RSSI per tracked device and refresh the device list.
+    /// (Re)arms the window timer. Leeway is a third of the window so a 1 s window stays ≈ 1 s.
+    private func scheduleTicks() {
+        let leeway = DispatchTimeInterval.milliseconds(Int(window * 1000 / 3))
+        tickTimer?.schedule(deadline: .now() + window, repeating: window, leeway: leeway)
+    }
+
+    /// Every window: deliver one averaged RSSI per tracked device and refresh the device list.
     private func tick() {
         let now = Date()
         if isScanning, central.state == .poweredOn { startScanWindow() }

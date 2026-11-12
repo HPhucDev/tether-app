@@ -49,17 +49,20 @@ struct StatusCard: View {
     var body: some View {
         let status = model.status
         let offSchedule = model.isOffSchedule
+        let forgotten = model.isDeviceForgotten
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: offSchedule ? "moon.zzz.fill" : status.cardSymbol)
+            Image(systemName: offSchedule ? "moon.zzz.fill" : forgotten ? "pause.circle.fill" : status.cardSymbol)
                 .font(.system(size: 22, weight: .semibold))
-                .foregroundStyle(offSchedule || status.color == .secondary ? Color.secondary : status.color)
+                .foregroundStyle(forgotten ? Color.orange : offSchedule || status.color == .secondary ? Color.secondary : status.color)
                 .frame(width: 30, height: 30)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 4) {
                     Text(model.statusTitle).font(.headline)
-                    AccuracyInfo()
+                    InfoButton(title: model.statusTitle, text: model.statusExplanation)
                 }
-                Text(offSchedule ? (model.nextScheduledStartText ?? "Ngoài giờ trong lịch, Tether không khoá Mac.") : subtitle(status))
+                Text(offSchedule ? (model.nextScheduledStartText ?? "Ngoài giờ trong lịch, Tether không khoá Mac.")
+                     : forgotten ? "\(model.forgottenNames) đang bị bỏ quên ở xa. Tether tự theo dõi lại khi thiết bị quay về gần."
+                     : subtitle(status))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -75,14 +78,15 @@ struct StatusCard: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill((offSchedule ? Color.gray : tint(status)).opacity(0.14))
+                .fill((offSchedule ? Color.gray : forgotten ? Color.orange : tint(status)).opacity(0.14))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder((offSchedule ? Color.gray : tint(status)).opacity(0.25))
+                .strokeBorder((offSchedule ? Color.gray : forgotten ? Color.orange : tint(status)).opacity(0.25))
         )
         .animation(.easeInOut(duration: 0.25), value: status)
         .animation(.easeInOut(duration: 0.25), value: offSchedule)
+        .animation(.easeInOut(duration: 0.25), value: forgotten)
     }
 
     private func tint(_ s: ProximityStatus) -> Color {
@@ -198,7 +202,7 @@ private struct ActionBar: View {
                 model.testLock()
             }
             IconButton(symbol: "gearshape", help: newFeatures.hasUnseen ? "Cài đặt (⌘,) · có tính năng mới" : "Cài đặt (⌘,)") {
-                SettingsWindow.shared.show(tab: newFeatures.hasUnseen ? .automation : .overview)
+                SettingsWindow.shared.show(tab: .overview)
             }
             .overlay(alignment: .topTrailing) {
                 if newFeatures.hasUnseen {
