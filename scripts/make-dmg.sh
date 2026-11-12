@@ -42,10 +42,16 @@ if [[ -f "$APP/Contents/Resources/AppIcon.icns" ]]; then
   cp "$APP/Contents/Resources/AppIcon.icns" "$STAGE/.VolumeIcon.icns"
 fi
 
+if [[ -e "/Volumes/$VOLNAME" ]]; then
+  echo "✗ A volume named \"$VOLNAME\" is already mounted (an older DMG?). Eject it in Finder and run again." >&2
+  exit 1
+fi
+
 echo "▸ Creating disk image…"
 hdiutil create -volname "$VOLNAME" -srcfolder "$STAGE" -fs HFS+ -format UDRW -ov "$RW" >/dev/null
-DEVICE=$(hdiutil attach -readwrite -noverify -noautoopen "$RW" | awk '/Apple_HFS/ {print $1}')
-MOUNT="/Volumes/$VOLNAME"
+ATTACH=$(hdiutil attach -readwrite -noverify -noautoopen "$RW" | grep Apple_HFS)
+DEVICE=$(echo "$ATTACH" | awk '{print $1}')
+MOUNT=$(echo "$ATTACH" | cut -f3)
 sleep 1
 
 echo "▸ Arranging window (Finder may ask for permission once)…"

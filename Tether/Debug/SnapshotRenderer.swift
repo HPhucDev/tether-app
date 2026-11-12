@@ -24,7 +24,7 @@ enum SnapshotRenderer {
             ("overview", AnyView(wrap(OverviewTab())), CGSize(width: 560, height: 640)),
             ("automation", AnyView(wrap(AutomationTab())), CGSize(width: 560, height: 560)),
             ("stats", AnyView(wrap(StatsTab())), CGSize(width: 560, height: 630)),
-            ("general", AnyView(wrap(GeneralTab())), CGSize(width: 560, height: 530)),
+            ("general", AnyView(wrap(GeneralTab())), CGSize(width: 560, height: 620)),
             ("about", AnyView(wrap(AboutTab())), CGSize(width: 560, height: 530)),
             ("popover", AnyView(wrap(MenuPopoverView())), CGSize(width: 300, height: 300)),
             ("picker", AnyView(wrap(DevicePickerSheet(initialKind: .iPhone))), CGSize(width: 540, height: 520)),

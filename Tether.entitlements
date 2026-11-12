@@ -7,5 +7,12 @@
 	<true/>
 	<key>com.apple.security.device.bluetooth</key>
 	<true/>
+	<!-- Sparkle: lets Tether talk to Sparkle's installer XPC services. Downloading happens in
+	     Sparkle's own Downloader service, so Tether itself still has no network entitlement. -->
+	<key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
+	<array>
+		<string>com.simple.tether-spks</string>
+		<string>com.simple.tether-spki</string>
+	</array>
 </dict>
 </plist>

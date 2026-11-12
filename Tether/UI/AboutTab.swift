@@ -20,6 +20,9 @@ struct AboutTab: View {
                                 .font(.callout)
                                 .foregroundStyle(.secondary)
                                 .textSelection(.enabled)
+                            CheckForUpdatesButton(title: "Kiểm tra cập nhật")
+                                .buttonStyle(.link)
+                                .font(.callout)
                         }
                         Text("Sợi dây vô hình giữa bạn và Mac.")
                             .font(.title3)
@@ -220,7 +223,7 @@ private struct AboutFooter: View {
         ("Website", URL(string: "https://hoangphuc.io.vn/")),
         ("LinkedIn", URL(string: "https://www.linkedin.com/in/hoang-phuc-developer")),
         ("Substack", URL(string: "https://hphucdev.substack.com/")),
-        ("GitHub", URL(string: "https://github.com/HPhucDev/tether-app")),
+        ("GitHub", nil),   // repo is private for now: set the URL again if it goes public
         ("Feedback", URL(string: "mailto:hoangphucdeveloper@gmail.com?subject=Tether%20feedback")),
     ]
 

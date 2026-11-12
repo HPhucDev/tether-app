@@ -249,6 +249,17 @@ struct GeneralTab: View {
 
             Section {
                 LabeledContent {
+                    CheckForUpdatesButton()
+                } label: {
+                    Text("Phiên bản \(Bundle.main.appVersion)")
+                    Text("Tether chỉ kết nối tới tether.hoangphuc.io.vn khi bạn bấm nút này. Bạn xem bản mới và các thay đổi trước khi chọn cài.")
+                }
+            } header: {
+                Text("Cập nhật")
+            }
+
+            Section {
+                LabeledContent {
                     Button("Xem lại…") { OnboardingWindow.shared.show() }
                         .pointingHandCursor()
                 } label: {

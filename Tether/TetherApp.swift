@@ -19,6 +19,7 @@ struct TetherApp: App {
         .commands {
             CommandGroup(replacing: .appInfo) {
                 Button("Giới thiệu Tether") { SettingsWindow.shared.show(tab: .about) }
+                Button("Kiểm tra cập nhật…") { UpdateController.shared.check() }
             }
             CommandGroup(replacing: .appSettings) {
                 Button("Cài đặt…") { SettingsWindow.shared.show() }
@@ -95,7 +96,7 @@ final class SettingsWindow: ManagedWindow {
         add(OverviewTab().frame(width: 560, height: 640), "Tổng quan", "shield.lefthalf.filled")
         add(AutomationTab().frame(width: 560, height: 560), "Tự động", "wand.and.stars")
         add(StatsTab().frame(width: 560, height: 630), "Thống kê", "chart.bar")
-        add(GeneralTab().frame(width: 560, height: 530), "Chung", "gearshape")
+        add(GeneralTab().frame(width: 560, height: 620), "Chung", "gearshape")
         add(AboutTab().frame(width: 560, height: 530), "Giới thiệu", "info.circle")
         return tabs
     }

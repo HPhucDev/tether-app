@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Merged with Xcode's generated Info.plist (GENERATE_INFOPLIST_FILE). Only Sparkle keys live here. -->
+<plist version="1.0">
+<dict>
+	<!-- Updates are checked only when the user clicks "Kiểm tra cập nhật": never automatically. -->
+	<key>SUEnableAutomaticChecks</key>
+	<false/>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUFeedURL</key>
+	<string>https://tether.hoangphuc.io.vn/appcast.xml</string>
+	<!-- Updates must be signed with the matching EdDSA private key (kept in the release Mac's Keychain). -->
+	<key>SUPublicEDKey</key>
+	<string>+xDPg8ToT4atmgdEsZLabJHF9a6DTqdDId4BzKdpvhM=</string>
+	<!-- Sandbox: Sparkle's XPC services download and install, so Tether itself needs no network access. -->
+	<key>SUEnableDownloaderService</key>
+	<true/>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+</dict>
+</plist>

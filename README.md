@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/phiên_bản-0.2.1-2b64f5" alt="Phiên bản 0.2.1">
+  <img src="https://img.shields.io/badge/phiên_bản-0.2.2-2b64f5" alt="Phiên bản 0.2.2">
   <img src="https://img.shields.io/badge/macOS-13%2B-111211?logo=apple&logoColor=white" alt="macOS 13+">
   <img src="https://img.shields.io/badge/Swift-5-F05138?logo=swift&logoColor=white" alt="Swift">
   <img src="https://img.shields.io/badge/SwiftUI-menu_bar-0A84FF" alt="SwiftUI">
@@ -84,11 +84,16 @@ Tải file `.dmg` mới nhất trên [website](https://tether.hoangphuc.io.vn/#i
 - **Lịch sử 50 lần khoá** gần nhất kèm lý do và sóng của từng thiết bị, lưu ngay trên Mac.
 - **Mở cùng máy**, tuỳ chọn hiện icon ở Dock, thông báo khi khoá.
 
+### Cập nhật khi bạn muốn
+
+- Bấm **Kiểm tra cập nhật…** (Cài đặt › Chung, tab Giới thiệu hoặc menu app). Có bản mới thì Tether hiện số phiên bản và changelog; bạn bấm cài mới tải, cài và mở lại.
+- **Không bao giờ tự kiểm tra hay tự cập nhật.** Dùng [Sparkle 2](https://sparkle-project.org): bản cập nhật ký EdDSA, việc tải chạy trong `Downloader.xpc` riêng nên Tether vẫn không có quyền mạng.
+
 ### Bảo vệ bạn, không theo dõi bạn
 
 | | |
 |---|---|
-| **Không mạng** | App Sandbox chỉ có đúng một quyền `com.apple.security.device.bluetooth`. macOS chặn mọi kết nối ra ngoài. |
+| **Không mạng** | App Sandbox chỉ có đúng một quyền `com.apple.security.device.bluetooth`. macOS chặn mọi kết nối của Tether. Chỉ khi bạn bấm *Kiểm tra cập nhật*, trình tải riêng của Sparkle (`Downloader.xpc`) mới hỏi `tether.hoangphuc.io.vn`. |
 | **Không thu thập** | Không analytics, không telemetry, không cloud. Tự kiểm chứng: Activity Monitor › Network luôn 0 byte. |
 | **Quyền tối thiểu** | Chỉ Bluetooth và Thông báo. Không file, không vị trí, không camera. |
 | **Tiết kiệm pin** | Bộ lọc gói trùng của chip Bluetooth, ngừng quét hẳn khi màn hình khoá hoặc Mac ngủ. |
@@ -112,6 +117,7 @@ iPhone / Watch / AirPods ──(gói Bluetooth tự phát)──▶ BluetoothSer
 cd TetherCore && swift test     # chạy unit test phần logic
 cd .. && open Tether.xcodeproj  # mở project trong Xcode
 scripts/make-dmg.sh             # build Release universal → build/Tether-<version>.dmg
+scripts/publish-update.sh       # ký DMG cho Sparkle, ghi appcast.xml (changelog từ website) vào ../tether-website/public
 ```
 
 Phát hành có ký Developer ID và notarize (để Gatekeeper không hỏi lại):
@@ -119,6 +125,15 @@ Phát hành có ký Developer ID và notarize (để Gatekeeper không hỏi l�
 ```bash
 DEVELOPER_ID="Developer ID Application: Tên (TEAMID)" NOTARY_PROFILE=tether-notary scripts/make-dmg.sh
 ```
+
+Phát hành một bản mới:
+
+1. Thêm mục changelog cho phiên bản đó vào `tether-website/lib/changelog.ts`.
+2. Nâng `MARKETING_VERSION` và `CURRENT_PROJECT_VERSION`, chạy `scripts/make-dmg.sh` rồi `scripts/publish-update.sh`.
+3. Chép DMG vào `tether-website/public/downloads/`, sửa `lib/site.ts`, commit và push website.
+
+> [!WARNING]
+> Khoá riêng EdDSA để ký bản cập nhật nằm trong Keychain của máy phát hành. **Hãy sao lưu nó** (`generate_keys -x <file>` trong thư mục `artifacts/sparkle/Sparkle/bin` của Swift package). Mất khoá thì người dùng hiện tại không nhận được bản cập nhật nào nữa.
 
 Xem log khi debug:
 
