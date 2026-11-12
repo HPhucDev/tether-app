@@ -22,6 +22,7 @@
   <a href="https://tether.hoangphuc.io.vn/" target="_blank">Website</a> •
   <a href="https://tether.hoangphuc.io.vn/#install" target="_blank">Tải về</a> •
   <a href="https://tether.hoangphuc.io.vn/whats-new/" target="_blank">Có gì mới</a> •
+  <a href="https://github.com/HPhucDev/tether-app/issues" target="_blank">Báo lỗi</a> •
   <a href="https://hoangphuc.io.vn/" target="_blank">Tác giả</a>
 </p>
 
@@ -141,9 +142,14 @@ log stream --predicate 'subsystem == "com.simple.tether"' --level debug
 - **Thiết bị:** iPhone, Apple Watch hoặc AirPods đăng nhập cùng Apple ID với Mac, hoặc đã ghép đôi Bluetooth
 - **Xcode:** 26 trở lên (để build từ mã nguồn, vì icon dùng định dạng Icon Composer)
 
-## Góp ý
+## Audit và đóng góp
 
-Gặp lỗi hay có ý tưởng? Gửi mail tới [hoangphucdeveloper@gmail.com](mailto:hoangphucdeveloper@gmail.com?subject=Tether%20feedback). Nếu thấy Tether hữu ích, mời mình một ly cà phê qua mã QR trong tab **Giới thiệu** của app nhé ☕
+Mã nguồn Tether công khai để bạn tự kiểm tra: app có gửi gì ra ngoài không (gợi ý: xem `Tether.entitlements` và tìm thử `URLSession`), khoá Mac ra sao (`ScreenLocker`), quyết định khi nào khoá thế nào (`TetherCore/ProximityEngine`).
+
+- **Báo lỗi, góp ý:** mở [Issue](https://github.com/HPhucDev/tether-app/issues) hoặc gửi mail tới [hoangphucdeveloper@gmail.com](mailto:hoangphucdeveloper@gmail.com?subject=Tether%20feedback).
+- **Đóng góp code:** fork repo, chạy `cd TetherCore && swift test` cho chắc rồi gửi [Pull request](https://github.com/HPhucDev/tether-app/pulls). Mỗi PR nên gọn và nói rõ vì sao cần thay đổi.
+
+Nếu thấy Tether hữu ích, mời mình một ly cà phê qua mã QR trong tab **Giới thiệu** của app nhé ☕
 
 ## Bản quyền
 

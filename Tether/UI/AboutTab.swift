@@ -220,7 +220,7 @@ private struct AboutFooter: View {
         ("Website", URL(string: "https://hoangphuc.io.vn/")),
         ("LinkedIn", URL(string: "https://www.linkedin.com/in/hoang-phuc-developer")),
         ("Substack", URL(string: "https://hphucdev.substack.com/")),
-        ("GitHub", nil),   // TODO: GitHub profile URL
+        ("GitHub", URL(string: "https://github.com/HPhucDev/tether-app")),
         ("Feedback", URL(string: "mailto:hoangphucdeveloper@gmail.com?subject=Tether%20feedback")),
     ]
 
